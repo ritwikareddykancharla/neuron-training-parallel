@@ -1,0 +1,623 @@
+{
+  "benchmark_timestamp_utc": "2026-11-25T23:28:49Z",
+  "environment": {
+    "python_version": "3.14.6",
+    "platform": "Darwin-arm64",
+    "execution_substrate": "CPU Python 3.12 + AWS Bedrock Runtime (Zero Trn1/Trn2/GPU instances)",
+    "aws_region": "us-west-2",
+    "bedrock_model": "us.amazon.nova-lite-v1:0"
+  },
+  "headline_kpis": {
+    "autograd_runs_passed": 12,
+    "autograd_runs_total": 12,
+    "max_abs_grad_diff": 2.0816681711721685e-17,
+    "zero1_tp_rank0_ram_reduction_pct": 73.98,
+    "zero1_tp_compression_x": 3.84,
+    "autograd_verify_p50_ms": 74.94,
+    "autograd_verify_p95_ms": 89.597,
+    "p1f1b_knapsack_ram_reduction_pct": 84.38,
+    "p1f1b_knapsack_compression_x": 6.4,
+    "knapsack_recompute_flop_overhead_pct": 18.89,
+    "gpipe_peak_stash_bytes": 1449984,
+    "p1f1b_knapsack_peak_stash_bytes": 226560,
+    "pipeline_bubble_pct": 27.27,
+    "schedule_verify_p50_ms": 5523.615,
+    "schedule_verify_p95_ms": 7395.641,
+    "fp8_steps": 40,
+    "rne_swamped_update_pct": 100.0,
+    "rne_loss_reduction_pct": 0.0,
+    "sr_loss_reduction_pct": 96.1,
+    "mxfp8_sr_loss_reduction_pct": 60.04,
+    "fp64_loss_reduction_pct": 98.66,
+    "fp8_train_p50_ms": 736.523,
+    "fp8_train_p95_ms": 819.163,
+    "compile_layers": 24,
+    "compile_cache_hits": 23,
+    "compile_cache_hit_rate_pct": 95.8,
+    "compile_uncached_p50_ms": 200.479,
+    "compile_cached_p50_ms": 10.143,
+    "compile_speedup_x": 19.77,
+    "compile_time_saved_pct": 94.9,
+    "bugpoint_initial_ops": 19,
+    "bugpoint_reduced_ops": 2,
+    "bugpoint_bisect_p50_ms": 109.151,
+    "bedrock_calls_passed": 9,
+    "bedrock_calls_total": 9,
+    "bedrock_latency_p50_ms": 1204.0,
+    "bedrock_latency_p95_ms": 1875.0,
+    "bedrock_mean_tokens": 468.2
+  },
+  "autograd_parity_matrix": [
+    {
+      "config_id": "AG-01",
+      "architecture": "llama_causal",
+      "world_size": 4,
+      "max_abs_grad_diff": 1.0408340855860843e-17,
+      "max_abs_param_diff": 1.1102230246251565e-16,
+      "zero1_ram_reduction_pct": 73.98,
+      "verify_ms": 72.015,
+      "passed": true
+    },
+    {
+      "config_id": "AG-02",
+      "architecture": "flux_mmdit_bidirectional",
+      "world_size": 4,
+      "max_abs_grad_diff": 2.0816681711721685e-17,
+      "max_abs_param_diff": 1.1310397063368782e-15,
+      "zero1_ram_reduction_pct": 73.99,
+      "verify_ms": 77.823,
+      "passed": true
+    },
+    {
+      "config_id": "AG-03",
+      "architecture": "llama_causal",
+      "world_size": 2,
+      "max_abs_grad_diff": 1.3877787807814457e-17,
+      "max_abs_param_diff": 2.7755575615628914e-17,
+      "zero1_ram_reduction_pct": 49.36,
+      "verify_ms": 72.722,
+      "passed": true
+    },
+    {
+      "config_id": "AG-04",
+      "architecture": "flux_mmdit_bidirectional",
+      "world_size": 8,
+      "max_abs_grad_diff": 1.3877787807814457e-17,
+      "max_abs_param_diff": 1.5265566588595902e-16,
+      "zero1_ram_reduction_pct": 86.38,
+      "verify_ms": 96.972,
+      "passed": true
+    }
+  ],
+  "pipeline_checkpoint_matrix": [
+    {
+      "schedule_id": "PP-4S-8M",
+      "stages": 4,
+      "microbatches": 8,
+      "seq_len": 16,
+      "bubble_pct": 27.27,
+      "gpipe_stash_bytes": 1449984,
+      "p1f1b_stash_bytes": 453120,
+      "p1f1b_knapsack_stash_bytes": 226560,
+      "ram_reduction_pct": 84.38,
+      "recompute_flop_overhead_pct": 18.89,
+      "max_grad_diff": 0.0,
+      "exec_ms": 3699.332
+    },
+    {
+      "schedule_id": "PP-4S-12M",
+      "stages": 4,
+      "microbatches": 12,
+      "seq_len": 16,
+      "bubble_pct": 20.0,
+      "gpipe_stash_bytes": 2174976,
+      "p1f1b_stash_bytes": 453120,
+      "p1f1b_knapsack_stash_bytes": 226560,
+      "ram_reduction_pct": 89.58,
+      "recompute_flop_overhead_pct": 18.89,
+      "max_grad_diff": 0.0,
+      "exec_ms": 5523.615
+    },
+    {
+      "schedule_id": "PP-4S-16M",
+      "stages": 4,
+      "microbatches": 16,
+      "seq_len": 16,
+      "bubble_pct": 15.79,
+      "gpipe_stash_bytes": 2899968,
+      "p1f1b_stash_bytes": 453120,
+      "p1f1b_knapsack_stash_bytes": 226560,
+      "ram_reduction_pct": 92.19,
+      "recompute_flop_overhead_pct": 18.89,
+      "max_grad_diff": 0.0,
+      "exec_ms": 7395.641
+    },
+    {
+      "schedule_id": "PP-2S-8M",
+      "stages": 2,
+      "microbatches": 8,
+      "seq_len": 24,
+      "bubble_pct": 11.11,
+      "gpipe_stash_bytes": 1284096,
+      "p1f1b_stash_bytes": 240768,
+      "p1f1b_knapsack_stash_bytes": 101952,
+      "ram_reduction_pct": 92.06,
+      "recompute_flop_overhead_pct": 23.38,
+      "max_grad_diff": 0.0,
+      "exec_ms": 3263.476
+    }
+  ],
+  "knapsack_operator_decisions": [
+    {
+      "op_id": "input_rmsnorm",
+      "category": "Normalization",
+      "bytes": 2048,
+      "recompute_flops": 1024,
+      "flops_per_byte": 0.5,
+      "action": "SAVE_IN_RAM"
+    },
+    {
+      "op_id": "qkv_linear_proj",
+      "category": "Linear Projection",
+      "bytes": 6144,
+      "recompute_flops": 24576,
+      "flops_per_byte": 4.0,
+      "action": "SAVE_IN_RAM"
+    },
+    {
+      "op_id": "attn_qk_scores",
+      "category": "Attention Scores",
+      "bytes": 8192,
+      "recompute_flops": 8192,
+      "flops_per_byte": 1.0,
+      "action": "RECOMPUTE_IN_BWD"
+    },
+    {
+      "op_id": "attn_softmax_probs",
+      "category": "Attention Scores",
+      "bytes": 8192,
+      "recompute_flops": 5120,
+      "flops_per_byte": 0.62,
+      "action": "RECOMPUTE_IN_BWD"
+    },
+    {
+      "op_id": "attn_context_out",
+      "category": "Linear Projection",
+      "bytes": 2048,
+      "recompute_flops": 16384,
+      "flops_per_byte": 8.0,
+      "action": "SAVE_IN_RAM"
+    },
+    {
+      "op_id": "post_attn_rmsnorm",
+      "category": "Normalization",
+      "bytes": 2048,
+      "recompute_flops": 1024,
+      "flops_per_byte": 0.5,
+      "action": "RECOMPUTE_IN_BWD"
+    },
+    {
+      "op_id": "swiglu_gate_up_proj",
+      "category": "Linear Projection",
+      "bytes": 8192,
+      "recompute_flops": 32768,
+      "flops_per_byte": 4.0,
+      "action": "SAVE_IN_RAM"
+    },
+    {
+      "op_id": "swiglu_silu_product",
+      "category": "Gated Activation",
+      "bytes": 4096,
+      "recompute_flops": 3072,
+      "flops_per_byte": 0.75,
+      "action": "RECOMPUTE_IN_BWD"
+    }
+  ],
+  "fp8_convergence_curves": {
+    "learning_rate": 0.0001,
+    "fp64_reference": {
+      "regime": "fp64_reference",
+      "initial_loss": 0.0001258,
+      "final_loss": 1.69e-06,
+      "loss_reduction_pct": 98.66,
+      "swamped_update_pct": 0.0,
+      "loss_curve": [
+        0.0001258,
+        0.00011078,
+        9.727e-05,
+        8.516e-05,
+        7.431e-05,
+        6.459e-05,
+        5.591e-05,
+        4.82e-05,
+        4.14e-05,
+        3.543e-05,
+        3.024e-05,
+        2.577e-05,
+        2.195e-05,
+        1.872e-05,
+        1.603e-05,
+        1.38e-05,
+        1.198e-05,
+        1.049e-05,
+        9.28e-06,
+        8.29e-06,
+        7.48e-06,
+        6.78e-06,
+        6.19e-06,
+        5.66e-06,
+        5.19e-06,
+        4.76e-06,
+        4.36e-06,
+        3.99e-06,
+        3.66e-06,
+        3.35e-06,
+        3.07e-06,
+        2.81e-06,
+        2.59e-06,
+        2.4e-06,
+        2.23e-06,
+        2.09e-06,
+        1.97e-06,
+        1.86e-06,
+        1.77e-06,
+        1.69e-06
+      ]
+    },
+    "bf16_rne": {
+      "regime": "bf16_rne",
+      "initial_loss": 0.0001258,
+      "final_loss": 0.0001258,
+      "loss_reduction_pct": 0.0,
+      "swamped_update_pct": 100.0,
+      "loss_curve": [
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258,
+        0.0001258
+      ]
+    },
+    "bf16_sr": {
+      "regime": "bf16_sr",
+      "initial_loss": 0.0001258,
+      "final_loss": 4.91e-06,
+      "loss_reduction_pct": 96.1,
+      "swamped_update_pct": 96.32,
+      "loss_curve": [
+        0.0001258,
+        0.00010794,
+        9.385e-05,
+        8.119e-05,
+        6.866e-05,
+        6.146e-05,
+        5.196e-05,
+        4.671e-05,
+        4.224e-05,
+        3.859e-05,
+        2.972e-05,
+        2.657e-05,
+        2.312e-05,
+        2.176e-05,
+        1.807e-05,
+        1.531e-05,
+        1.389e-05,
+        1.289e-05,
+        1.089e-05,
+        9.65e-06,
+        8.49e-06,
+        8.75e-06,
+        9.66e-06,
+        1.05e-05,
+        1.048e-05,
+        9.62e-06,
+        9e-06,
+        9.73e-06,
+        9.22e-06,
+        8.07e-06,
+        7.63e-06,
+        7.9e-06,
+        6.86e-06,
+        7.47e-06,
+        7.7e-06,
+        6.72e-06,
+        6.89e-06,
+        6.23e-06,
+        5.77e-06,
+        4.91e-06
+      ]
+    },
+    "mxfp8_sr_master": {
+      "regime": "mxfp8_sr_master",
+      "initial_loss": 0.0001258,
+      "final_loss": 5.027e-05,
+      "loss_reduction_pct": 60.04,
+      "swamped_update_pct": 0.05,
+      "loss_curve": [
+        0.0001258,
+        0.00012158,
+        0.00011479,
+        0.00010839,
+        0.00010455,
+        9.985e-05,
+        9.61e-05,
+        9.283e-05,
+        8.953e-05,
+        8.655e-05,
+        8.345e-05,
+        8.072e-05,
+        7.832e-05,
+        7.581e-05,
+        7.402e-05,
+        7.234e-05,
+        7.038e-05,
+        6.839e-05,
+        6.668e-05,
+        6.548e-05,
+        6.444e-05,
+        6.346e-05,
+        6.205e-05,
+        6.078e-05,
+        5.938e-05,
+        5.829e-05,
+        5.704e-05,
+        5.588e-05,
+        5.484e-05,
+        5.418e-05,
+        5.377e-05,
+        5.365e-05,
+        5.308e-05,
+        5.298e-05,
+        5.306e-05,
+        5.3e-05,
+        5.261e-05,
+        5.199e-05,
+        5.144e-05,
+        5.027e-05
+      ]
+    },
+    "mxfp8_outlier_comparison": {
+      "outlier_magnitude": 1024.0,
+      "num_elements": 128,
+      "block_size": 32,
+      "per_tensor_fp8_e4m3": {
+        "global_scale": 2.285714,
+        "non_outlier_rel_rmse_pct": 19.65,
+        "underflow_zero_count": 17
+      },
+      "mxfp8_block32_e4m3": {
+        "shared_e8m0_exponents": [
+          3,
+          -14,
+          -14,
+          -14
+        ],
+        "non_outlier_rel_rmse_pct": 2.56,
+        "underflow_zero_count": 0
+      }
+    }
+  },
+  "compiler_cache_and_bisect": {
+    "num_layers": 24,
+    "cache_hits": 23,
+    "cache_misses": 1,
+    "cache_hit_rate_pct": 95.8,
+    "uncached_p50_ms": 200.479,
+    "cached_p50_ms": 10.143,
+    "speedup_x": 19.77,
+    "max_diff_cached_vs_uncached": 0.0,
+    "isolated_pass": "BrokenFastExpPass",
+    "bisect_oracle_calls": 4,
+    "initial_op_count": 19,
+    "minimal_reproducer_op_count": 2,
+    "minimal_clean_ssa": [
+      {
+        "out": "%v7",
+        "op": "Exp",
+        "inputs": [
+          "%arg_in0"
+        ],
+        "shape": [
+          16,
+          16
+        ],
+        "dtype": "bf16",
+        "attrs": {}
+      },
+      {
+        "out": "%v8",
+        "op": "ReduceSum",
+        "inputs": [
+          "%v7"
+        ],
+        "shape": [
+          16,
+          1
+        ],
+        "dtype": "bf16",
+        "attrs": {}
+      }
+    ],
+    "minimal_buggy_ssa": [
+      {
+        "out": "%v7",
+        "op": "BrokenPoly3Exp",
+        "inputs": [
+          "%arg_in0"
+        ],
+        "shape": [
+          16,
+          16
+        ],
+        "dtype": "bf16",
+        "attrs": {}
+      },
+      {
+        "out": "%v8",
+        "op": "ReduceSum",
+        "inputs": [
+          "%v7"
+        ],
+        "shape": [
+          16,
+          1
+        ],
+        "dtype": "bf16",
+        "attrs": {}
+      }
+    ],
+    "bisect_probes": [
+      {
+        "probe_pass_index": 2,
+        "pass_name": "CommonSubexprElimPass",
+        "max_abs_diff": 0.0,
+        "status": "PASS"
+      },
+      {
+        "probe_pass_index": 4,
+        "pass_name": "BrokenFastExpPass",
+        "max_abs_diff": 0.00271611,
+        "status": "FAIL"
+      },
+      {
+        "probe_pass_index": 3,
+        "pass_name": "SwiGLUFusionPass",
+        "max_abs_diff": 0.0,
+        "status": "PASS"
+      },
+      {
+        "probe_pass_index": 4,
+        "pass_name": "BrokenFastExpPass",
+        "max_abs_diff": 0.00271611,
+        "status": "ISOLATED_CULPRIT"
+      }
+    ]
+  },
+  "bedrock_advisor_runs": [
+    {
+      "call_id": "BRK-01",
+      "workload_id": "llama3_70b_tp4_zero1",
+      "dominant_stall": "Collectives",
+      "owning_layer": "Collectives & Runtime Layer",
+      "bedrock_latency_ms": 858.0,
+      "bedrock_tokens": 457,
+      "passed": true,
+      "sample_summary": "The training step is primarily bottlenecked by collective operations, specifically AllGather and ReduceScatter, which account for 32% of the step time. These collectives are occurr"
+    },
+    {
+      "call_id": "BRK-02",
+      "workload_id": "flux_mmdit_ulysses_sp",
+      "dominant_stall": "Memory / Activation Rematerialization",
+      "owning_layer": "Framework Autograd & Checkpointing Layer",
+      "bedrock_latency_ms": 1204.0,
+      "bedrock_tokens": 476,
+      "passed": true,
+      "sample_summary": "The training step is significantly slowed by memory rematerialization, which accounts for 134.0 ms of the total step time. This bottleneck is primarily due to the bidirectional att"
+    },
+    {
+      "call_id": "BRK-03",
+      "workload_id": "deepseek_moe_fp8",
+      "dominant_stall": "Collectives",
+      "owning_layer": "Collectives & Runtime Layer",
+      "bedrock_latency_ms": 1589.0,
+      "bedrock_tokens": 494,
+      "passed": true,
+      "sample_summary": "The primary bottleneck in the training step is the collectives, which are taking significantly longer than the compute time. Additionally, the recompilation of the 24-layer MoE gra"
+    },
+    {
+      "call_id": "BRK-04",
+      "workload_id": "llama3_70b_tp4_zero1",
+      "dominant_stall": "Collectives",
+      "owning_layer": "Collectives & Runtime Layer",
+      "bedrock_latency_ms": 1474.0,
+      "bedrock_tokens": 455,
+      "passed": true,
+      "sample_summary": "The training step is primarily bottlenecked by exposed collective operations, particularly AllGather and ReduceScatter, which account for 32% of the step time. This is due to the s"
+    },
+    {
+      "call_id": "BRK-05",
+      "workload_id": "flux_mmdit_ulysses_sp",
+      "dominant_stall": "Memory / Activation Rematerialization",
+      "owning_layer": "Framework Autograd & Checkpointing Layer",
+      "bedrock_latency_ms": 1096.0,
+      "bedrock_tokens": 449,
+      "passed": true,
+      "sample_summary": "The training step is primarily bottlenecked by memory recomputation due to large bidirectional attention score tensors exceeding activation RAM. This results in full-block recomput"
+    },
+    {
+      "call_id": "BRK-06",
+      "workload_id": "deepseek_moe_fp8",
+      "dominant_stall": "Collectives",
+      "owning_layer": "Collectives & Runtime Layer",
+      "bedrock_latency_ms": 1179.0,
+      "bedrock_tokens": 461,
+      "passed": true,
+      "sample_summary": "The training step is primarily bottlenecked by collective operations, which are taking significantly longer than compute operations. Additionally, there are noticeable stalls due t"
+    },
+    {
+      "call_id": "BRK-07",
+      "workload_id": "llama3_70b_tp4_zero1",
+      "dominant_stall": "Collectives",
+      "owning_layer": "Collectives & Runtime Layer",
+      "bedrock_latency_ms": 1377.0,
+      "bedrock_tokens": 448,
+      "passed": true,
+      "sample_summary": "The training step is primarily bottlenecked by collective operations, specifically AllGather and ReduceScatter, which account for 32% of the step time. These collectives are causin"
+    },
+    {
+      "call_id": "BRK-08",
+      "workload_id": "flux_mmdit_ulysses_sp",
+      "dominant_stall": "Memory / Activation Rematerialization",
+      "owning_layer": "Framework Autograd & Checkpointing Layer",
+      "bedrock_latency_ms": 1004.0,
+      "bedrock_tokens": 478,
+      "passed": true,
+      "sample_summary": "The training step is primarily hindered by memory recomputation stalls due to activation rematerialization. This is caused by bidirectional attention score tensors exceeding the av"
+    },
+    {
+      "call_id": "BRK-09",
+      "workload_id": "deepseek_moe_fp8",
+      "dominant_stall": "Collectives",
+      "owning_layer": "Collectives & Runtime Layer",
+      "bedrock_latency_ms": 1875.0,
+      "bedrock_tokens": 496,
+      "passed": true,
+      "sample_summary": "The training step is primarily bottlenecked by collective operations, which are taking significantly longer than compute operations. Additionally, the recompilation of the 24-layer"
+    }
+  ]
+}

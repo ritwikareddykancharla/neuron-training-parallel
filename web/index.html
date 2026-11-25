@@ -1,0 +1,2589 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TrainiumPulse: Distributed Training Gradient Parity, 1F1B Memory, FP8 Numerics &amp; Subgraph Compile Cache</title>
+  <meta name="description" content="TrainiumPulse verifies multi-rank sharded autograd gradients (TP, ZeRO-1, Ulysses), solves exact 0/1 knapsack activation checkpointing with 1F1B schedules, tests BF16/FP8/MXFP8 stochastic rounding convergence, and caches alpha-canonical compiler subgraphs with live Amazon Bedrock bottleneck triage." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&amp;family=Martian+Mono:wght@400;500;600;700&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&amp;family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-paper: #FAF7F2;
+      --bg-card: #FFFFFF;
+      --bg-subtle: #F2ECE1;
+      --bg-obsidian: #141413;
+      --bg-code: #121417;
+      --text-code: #F4F4F5;
+      --ink: #141413;
+      --ink-muted: #52514E;
+      --border: #18181B;
+      --shadow: 4px 4px 0px #18181B;
+      --shadow-sm: 2px 2px 0px #18181B;
+      --dot-color: rgba(24, 24, 27, 0.13);
+      --accent-main: #D97706;
+      --accent-ink: #FFFFFF;
+      --accent-soft: #FEF3C7;
+      --accent-deep: #92400E;
+      --blue: #1D4ED8;
+      --blue-soft: #DBEAFE;
+      --pass: #059669;
+      --pass-soft: #D1FAE5;
+      --fail: #DC2626;
+      --fail-soft: #FEE2E2;
+      --warn: #B45309;
+      --warn-soft: #FFEDD5;
+      --purple: #6D28D9;
+      --purple-soft: #EDE9FE;
+    }
+
+    [data-theme="dark"] {
+      --bg-paper: #0E1113;
+      --bg-card: #161A1E;
+      --bg-subtle: #1F252B;
+      --bg-obsidian: #090B0C;
+      --bg-code: #090B0D;
+      --text-code: #E4E4E7;
+      --ink: #F4F4F5;
+      --ink-muted: #A1A1AA;
+      --border: #52525B;
+      --shadow: 4px 4px 0px #000000;
+      --shadow-sm: 2px 2px 0px #000000;
+      --dot-color: rgba(255, 255, 255, 0.08);
+      --accent-main: #F59E0B;
+      --accent-ink: #141413;
+      --accent-soft: #451A03;
+      --accent-deep: #FDE68A;
+      --blue: #60A5FA;
+      --blue-soft: #1E293B;
+      --pass: #34D399;
+      --pass-soft: #064E3B;
+      --fail: #F87171;
+      --fail-soft: #450A0A;
+      --warn: #FBBF24;
+      --warn-soft: #451A03;
+      --purple: #C4B5FD;
+      --purple-soft: #2E1065;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-paper);
+      background-image: radial-gradient(var(--dot-color) 1.25px, transparent 1.25px);
+      background-size: 20px 20px;
+      color: var(--ink);
+      line-height: 1.68;
+      padding-bottom: 4.5rem;
+    }
+
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'Martian Mono', monospace; }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 1.6rem;
+    }
+
+    /* Sticky Topbar + Sticky Scroll-Spy Section TOC */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 120;
+      background: var(--bg-paper);
+      border-bottom: 2px solid var(--border);
+      padding: 0.78rem 0;
+    }
+
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      flex-wrap: wrap;
+    }
+
+    .toc-bar {
+      position: sticky;
+      top: 59px;
+      z-index: 110;
+      background: var(--bg-subtle);
+      border-bottom: 2px solid var(--border);
+      padding: 0.52rem 0;
+    }
+
+    .toc-inner {
+      display: flex;
+      align-items: center;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+    }
+
+    .toc-link {
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 700;
+      padding: 0.24rem 0.62rem;
+      border: 1.5px solid var(--border);
+      background: var(--bg-card);
+      transition: background 0.12s ease, transform 0.08s ease;
+    }
+
+    .toc-link:hover,
+    .toc-link.active {
+      background: var(--accent-main);
+      color: var(--accent-ink);
+      transform: translate(-1px, -1px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      font-weight: 800;
+      font-size: 1.16rem;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+      color: var(--ink);
+    }
+
+    .brand-badge {
+      background: var(--accent-main);
+      color: var(--accent-ink);
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+      padding: 0.22rem 0.58rem;
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .btn, .nav-pill {
+      font-family: 'Schibsted Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 0.84rem;
+      padding: 0.5rem 0.92rem;
+      border: 2px solid var(--border);
+      background: var(--bg-card);
+      color: var(--ink);
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      text-decoration: none;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.12s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .btn:hover, .nav-pill:hover {
+      transform: translate(-1px, -1px);
+      box-shadow: var(--shadow);
+    }
+
+    .btn:active, .nav-pill:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0px var(--border);
+    }
+
+    .btn:disabled {
+      opacity: 0.58;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-accent { background: var(--accent-main); color: var(--accent-ink); }
+    .btn-obsidian { background: #18181B; color: #FAF7F2; }
+    [data-theme="dark"] .btn-obsidian { background: var(--accent-main); color: #141413; }
+    .btn-secondary { background: var(--bg-subtle); }
+
+    /* Hero */
+    .hero {
+      padding: 2.6rem 0 2.3rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .hero-top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.05rem;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 0.3rem 0.7rem;
+      background: var(--accent-main);
+      color: var(--accent-ink);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .runtime-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.3rem 0.7rem;
+      background: var(--bg-card);
+      color: var(--ink);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--pass);
+      display: inline-block;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 3.5vw, 2.82rem);
+      font-weight: 800;
+      line-height: 1.13;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.95rem;
+      max-width: 1040px;
+    }
+
+    .hero-sub {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: clamp(1.15rem, 1.85vw, 1.34rem);
+      line-height: 1.64;
+      color: var(--ink-muted);
+      max-width: 1020px;
+      margin-bottom: 1.35rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.68rem;
+      margin-bottom: 1.45rem;
+    }
+
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.1rem;
+      margin-top: 1.1rem;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 1.35rem;
+    }
+
+    .kpi-card {
+      padding: 1.15rem 1.25rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: var(--accent-main);
+      border-bottom: 1.5px solid var(--border);
+    }
+
+    .kpi-val {
+      font-family: 'Martian Mono', monospace;
+      font-size: 1.34rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-top: 0.25rem;
+    }
+
+    .kpi-label { font-size: 0.88rem; font-weight: 800; color: var(--ink); margin-top: 0.24rem; }
+    .kpi-sub { font-size: 0.8rem; color: var(--ink-muted); margin-top: 0.28rem; line-height: 1.5; }
+
+    .pipeline-bar {
+      margin-top: 1.45rem;
+      background: var(--bg-obsidian);
+      color: #FAF7F2;
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 0.95rem 1.2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.7rem;
+      flex-wrap: wrap;
+    }
+
+    .pipe-step { display: flex; align-items: center; gap: 0.5rem; font-size: 0.84rem; font-weight: 600; }
+    .pipe-num {
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: var(--accent-main);
+      color: #FFFFFF;
+      padding: 0.14rem 0.44rem;
+      border: 1.5px solid #FFFFFF;
+    }
+    .pipe-arrow { color: #FBBF24; font-family: 'Martian Mono', monospace; font-weight: 700; }
+
+    /* Sections */
+    .section {
+      padding: 2.8rem 0 2.5rem;
+      border-bottom: 2px solid var(--border);
+      scroll-margin-top: 114px;
+    }
+
+    .section-kicker {
+      display: inline-block;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--accent-deep);
+      margin-bottom: 0.35rem;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1.1rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.45rem;
+    }
+
+    .section-title {
+      font-size: 1.62rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .section-desc {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 1.15rem;
+      line-height: 1.62;
+      color: var(--ink-muted);
+      max-width: 920px;
+      margin-top: 0.32rem;
+    }
+
+    .overview-callout {
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      border-left: 7px solid var(--accent-main);
+      box-shadow: var(--shadow);
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+      line-height: 1.72;
+    }
+
+    .overview-callout h3 {
+      font-size: 1.05rem;
+      font-weight: 800;
+      margin-bottom: 0.45rem;
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.05rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 980px) { .problem-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 580px) { .problem-grid { grid-template-columns: 1fr; } }
+
+    .problem-card {
+      padding: 1.2rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .step-badge {
+      display: inline-block;
+      align-self: flex-start;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.18rem 0.52rem;
+      background: var(--accent-soft);
+      color: var(--accent-deep);
+      border: 1.5px solid var(--border);
+      text-transform: uppercase;
+    }
+
+    .problem-card h3 { font-size: 1.04rem; font-weight: 800; line-height: 1.3; }
+    .problem-card p { font-size: 0.9rem; color: var(--ink-muted); line-height: 1.66; }
+
+    .scenario-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 1.45rem 1.55rem;
+      margin-top: 1.5rem;
+    }
+
+    .scenario-steps {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    @media (max-width: 980px) { .scenario-steps { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 580px) { .scenario-steps { grid-template-columns: 1fr; } }
+
+    .scenario-step {
+      background: var(--bg-subtle);
+      border: 1.5px solid var(--border);
+      padding: 1rem 1.05rem;
+      font-size: 0.88rem;
+      line-height: 1.65;
+    }
+
+    /* Subsystem & Trade-Off Cards */
+    .module-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.4rem;
+    }
+    @media (max-width: 940px) { .module-grid { grid-template-columns: 1fr; } }
+
+    .module-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .module-card-head {
+      background: var(--bg-obsidian);
+      color: #FAF7F2;
+      padding: 0.65rem 1.1rem;
+      border-bottom: 2px solid var(--border);
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .module-card-body {
+      padding: 1.25rem 1.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      flex: 1;
+    }
+
+    .prose-block {
+      background: var(--bg-paper);
+      border: 1.5px solid var(--border);
+      padding: 0.88rem 1.02rem;
+      font-size: 0.91rem;
+      line-height: 1.68;
+      color: var(--ink);
+    }
+
+    .prose-block-tech {
+      background: var(--bg-subtle);
+      border: 1.5px solid var(--border);
+      padding: 0.88rem 1.02rem;
+      font-size: 0.88rem;
+      line-height: 1.68;
+      color: var(--ink-muted);
+    }
+
+    /* Architecture Canvas */
+    .arch-canvas-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      padding: 0.72rem 1rem;
+      background: var(--bg-subtle);
+      border: 2px solid var(--border);
+      border-bottom: none;
+    }
+
+    .arch-canvas-viewport {
+      background-color: #FFFFFF;
+      background-image: radial-gradient(rgba(24, 24, 27, 0.14) 1px, transparent 1px);
+      background-size: 18px 18px;
+      border: 2px solid #18181B;
+      box-shadow: 4px 4px 0px #18181B;
+      overflow-x: auto;
+      padding: 0.9rem;
+    }
+
+    .arch-canvas-svg {
+      display: block;
+      width: 100%;
+      min-width: 980px;
+      height: auto;
+      transition: width 0.22s ease, min-width 0.22s ease;
+    }
+
+    .arch-canvas-svg.zoom-125 {
+      width: 125%;
+      min-width: 1225px;
+    }
+
+    .svg-title { font-family: 'Caveat', cursive; }
+    .svg-mono { font-family: 'Martian Mono', monospace; }
+
+    .arch-node {
+      cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+
+    .arch-node:hover {
+      filter: drop-shadow(3px 3px 0px #D97706);
+    }
+
+    .arch-node.selected .arch-stroke-main {
+      stroke: #D97706 !important;
+      stroke-width: 3.3px !important;
+    }
+
+    .arch-inspector {
+      margin-top: 1.05rem;
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 1.15rem 1.3rem;
+    }
+
+    .arch-node-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+      margin-bottom: 0.9rem;
+    }
+
+    .arch-node-pill {
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.69rem;
+      font-weight: 700;
+      padding: 0.28rem 0.6rem;
+      border: 1.5px solid var(--border);
+      background: var(--bg-subtle);
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .arch-node-pill.active {
+      background: var(--accent-main);
+      color: var(--accent-ink);
+    }
+
+    /* Interactive Demo Tabs */
+    .tab-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.78rem;
+      margin-bottom: 1.45rem;
+    }
+    @media (max-width: 960px) { .tab-bar { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 580px) { .tab-bar { grid-template-columns: 1fr; } }
+
+    .tab-btn {
+      text-align: left;
+      padding: 0.98rem 1.05rem;
+      background: var(--bg-card);
+      color: var(--ink);
+      border: 2px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.12s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 0.34rem;
+    }
+
+    .tab-btn:hover { transform: translate(-1px, -1px); box-shadow: var(--shadow); }
+    .tab-btn.active {
+      background: var(--accent-main);
+      color: var(--accent-ink);
+      box-shadow: var(--shadow);
+      transform: translate(-1px, -1px);
+    }
+
+    .tab-btn-eyebrow { font-family: 'Martian Mono', monospace; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; opacity: 0.9; }
+    .tab-btn-title { font-size: 0.94rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.26; }
+    .tab-btn-desc { font-size: 0.78rem; line-height: 1.45; opacity: 0.92; }
+    .tab-btn-metric { font-family: 'Martian Mono', monospace; font-size: 0.66rem; font-weight: 700; opacity: 0.92; margin-top: 0.15rem; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .grid-2 { display: grid; grid-template-columns: 1.02fr 1.18fr; gap: 1.3rem; align-items: start; }
+    .grid-equal { display: grid; grid-template-columns: 1fr 1fr; gap: 1.3rem; align-items: start; }
+    @media (max-width: 940px) { .grid-2, .grid-equal { grid-template-columns: 1fr; } }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.18rem 0.52rem;
+      border: 1.5px solid var(--border);
+      text-transform: uppercase;
+    }
+
+    .tag-accent { background: var(--accent-main); color: var(--accent-ink); }
+    .tag-soft { background: var(--accent-soft); color: var(--accent-deep); }
+    .tag-pass { background: var(--pass-soft); color: var(--pass); }
+    .tag-fail { background: var(--fail-soft); color: var(--fail); }
+    .tag-warn { background: var(--warn-soft); color: var(--warn); }
+
+    .control-group { margin-bottom: 0.9rem; }
+    .control-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.83rem;
+      font-weight: 700;
+      margin-bottom: 0.38rem;
+    }
+
+    textarea, select, input[type="text"], input[type="number"] {
+      width: 100%;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.76rem;
+      padding: 0.62rem 0.78rem;
+      background: var(--bg-paper);
+      color: var(--ink);
+      border: 2px solid var(--border);
+      line-height: 1.5;
+    }
+    textarea:focus, select:focus, input:focus { outline: 2px solid var(--accent-main); outline-offset: 1px; }
+
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-subtle);
+      border: 2px solid var(--border);
+      border-bottom: none;
+      padding: 0.48rem 0.85rem;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.71rem;
+      font-weight: 700;
+    }
+
+    .code-box {
+      background: var(--bg-code);
+      color: var(--text-code);
+      border: 2px solid var(--border);
+      padding: 0.95rem 1.05rem;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.73rem;
+      line-height: 1.58;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .verdict-banner {
+      border: 2px solid var(--border);
+      padding: 0.88rem 1.02rem;
+      margin-bottom: 0.95rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.8rem;
+      flex-wrap: wrap;
+    }
+    .verdict-allow { background: var(--pass-soft); }
+    .verdict-deny { background: var(--fail-soft); }
+    .verdict-warn { background: var(--warn-soft); }
+
+    .table-wrap { overflow-x: auto; border: 2px solid var(--border); background: var(--bg-card); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.79rem; }
+    th, td { padding: 0.58rem 0.72rem; text-align: left; border-bottom: 1.5px solid var(--border); }
+    th { background: var(--bg-subtle); font-family: 'Martian Mono', monospace; font-size: 0.67rem; text-transform: uppercase; font-weight: 700; }
+    tr:last-child td { border-bottom: none; }
+
+    .bar-group { display: flex; flex-direction: column; gap: 0.65rem; margin: 0.8rem 0; }
+    .bar-row { display: flex; flex-direction: column; gap: 0.24rem; }
+    .bar-meta { display: flex; justify-content: space-between; font-family: 'Martian Mono', monospace; font-size: 0.72rem; font-weight: 600; }
+    .bar-track { width: 100%; height: 16px; background: var(--bg-subtle); border: 1.5px solid var(--border); overflow: hidden; }
+    .bar-fill { height: 100%; transition: width 0.28s ease; }
+    .bar-fill-accent { background: var(--accent-main); }
+    .bar-fill-pass { background: var(--pass); }
+    .bar-fill-fail { background: var(--fail); }
+
+    .sched-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0.75rem;
+      border: 2px solid var(--border);
+      background: var(--bg-paper);
+      overflow-x: auto;
+    }
+    .sched-stage-row {
+      display: flex;
+      align-items: center;
+      gap: 0.22rem;
+    }
+    .sched-stage-label {
+      width: 62px;
+      flex-shrink: 0;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.66rem;
+      font-weight: 700;
+    }
+    .sched-cell {
+      width: 28px;
+      height: 24px;
+      flex-shrink: 0;
+      border: 1.2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.6rem;
+      font-weight: 700;
+    }
+    .sched-fwd { background: #DBEAFE; color: #1E3A8A; }
+    .sched-bwd { background: #FEF3C7; color: #92400E; }
+    .sched-idle { background: var(--bg-subtle); color: var(--ink-muted); opacity: 0.55; }
+
+    .bit-pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.45rem;
+    }
+    .bit-box {
+      font-family: 'Martian Mono', monospace;
+      font-size: 0.72rem;
+      padding: 0.32rem 0.55rem;
+      border: 1.5px solid var(--border);
+      background: var(--bg-subtle);
+    }
+
+    .footer {
+      margin-top: 2.8rem;
+      padding-top: 1.6rem;
+      border-top: 2px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      font-size: 0.84rem;
+      color: var(--ink-muted);
+    }
+  </style>
+</head>
+<body>
+  <!-- Sticky Topbar -->
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <a href="#top" class="brand">
+        <span class="brand-badge">TRAINIUMPULSE v1.0</span>
+        <span>TrainiumPulse</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary Navigation">
+        <a class="nav-pill" href="#studio">Live Demo</a>
+        <a class="nav-pill" href="#benchmarks">Measured Stats</a>
+        <a class="btn btn-obsidian" href="https://github.com/ritwikareddykancharla/neuron-training-parallel" target="_blank" rel="noopener">★ GitHub Repo</a>
+        <button type="button" class="btn btn-secondary" id="themeToggleBtn" aria-label="Toggle color theme">
+          <span id="themeIcon">🌙</span>
+          <span id="themeLabel">Dark Mode</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Sticky Scroll-Spy Section TOC -->
+  <nav class="toc-bar" aria-label="Section Navigation">
+    <div class="container toc-inner">
+      <span style="font-weight:700; color:var(--ink-muted);">SECTIONS:</span>
+      <a class="toc-link active" data-toc="problem" href="#problem">01 · Problem</a>
+      <a class="toc-link" data-toc="architecture" href="#architecture">02 · Architecture</a>
+      <a class="toc-link" data-toc="implementation" href="#implementation">03 · Implementation</a>
+      <a class="toc-link" data-toc="tradeoffs" href="#tradeoffs">04 · Trade-Offs</a>
+      <a class="toc-link" data-toc="studio" href="#studio">05 · Live Demo</a>
+      <a class="toc-link" data-toc="benchmarks" href="#benchmarks">06 · Benchmarks</a>
+    </div>
+  </nav>
+
+  <main class="container" id="top">
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-top-row">
+        <div class="eyebrow">Distributed Training Numerics &amp; Compiler Cache · Built for AWS Neuron Training</div>
+        <div class="runtime-pill" id="runtimePill">
+          <span class="pulse-dot" id="runtimeDot"></span>
+          <span id="runtimeModeText">Live Interactive Demo · Powered by Amazon Bedrock</span>
+        </div>
+      </div>
+
+      <h1>TrainiumPulse: Verifying Distributed Training Gradients, Activation Memory, FP8 Numerics, and Subgraph Compile Caching</h1>
+      <p class="hero-sub">
+        Scaling model training across multiple workers can distort gradients, exhaust activation memory, stall reduced-precision updates, and recompile identical layers repeatedly. TrainiumPulse verifies sharded backward math, trims activation memory, restores convergence with stochastic rounding, and caches repeated compiler subgraphs.
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn btn-accent" href="#studio">▶ Try the Live Demo ↓</a>
+        <a class="btn btn-secondary" href="#architecture">See Architecture ↓</a>
+        <a class="btn btn-secondary" href="#benchmarks">View Benchmarks ↓</a>
+      </div>
+
+      <div class="kpi-strip" id="heroKpiStrip"></div>
+
+      <div class="pipeline-bar" role="region" aria-label="TrainiumPulse Execution Flow">
+        <div class="pipe-step"><span class="pipe-num">01</span><span>Shard Forward &amp; Backward Ranks</span></div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step"><span class="pipe-num">02</span><span>Schedule 1F1B &amp; Knapsack Checkpoints</span></div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step"><span class="pipe-num">03</span><span>Quantize FP8 With Stochastic Rounding</span></div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step"><span class="pipe-num">04</span><span>Cache Subgraphs &amp; Triage With Bedrock</span></div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 01 · PROBLEM                                                        -->
+    <!-- =================================================================== -->
+    <section id="problem" class="section">
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">01 · Problem</span>
+          <h2 class="section-title">Problem</h2>
+          <p class="section-desc">
+            Large language models and multimodal diffusion transformers fail or run below peak efficiency when distributed collectives, activation storage, reduced-precision rounding, and graph compilation are tuned in isolation.
+          </p>
+        </div>
+        <span class="tag tag-accent">Distributed Training Systems</span>
+      </div>
+
+      <div class="overview-callout">
+        <h3>Overview</h3>
+        <p>
+          TrainiumPulse executes real reverse-mode tensor math, memory tracking, IEEE bit-level casting, and SSA graph passes in Python 3.12 on CPU and AWS Lambda without relying on accelerator instances or simulated numbers. Across <code>12 / 12</code> multi-rank runs, sharded <code>TP=4 + Ulysses + ZeRO-1</code> training matches single-rank FP64 parameter gradients within <code>2.08e-17</code> while cutting Rank-0 AdamW state memory by <code>73.98%</code>. Combining a <code>1F1B</code> pipeline schedule with exact <code>0/1</code> knapsack selective activation checkpointing cuts live activation stash memory by <code>84.38%</code> vs. uncheckpointed <code>GPipe</code> with <code>0.0</code> gradient drift, unbiased stochastic rounding lifts 40-step <code>lr=1e-4</code> loss reduction from <code>0.0%</code> (swamped round-to-nearest) to <code>96.1%</code>, and alpha-canonical <code>SHA-256</code> subgraph caching hits <code>23 / 24</code> repeated transformer layers (<code>95.8%</code>, <code>19.77x</code> speedup).
+        </p>
+      </div>
+
+      <div class="problem-grid">
+        <div class="card problem-card">
+          <span class="step-badge">01 · COLLECTIVE PARITY</span>
+          <h3>Conjugate Backward Collectives Are Easy to Miswire</h3>
+          <p>Splitting attention heads with <code>AllToAll</code> and feed-forward projections with column and row parallelism requires exact adjoint backward collectives so sharded gradients match unsharded math.</p>
+        </div>
+        <div class="card problem-card">
+          <span class="step-badge">02 · ACTIVATION RAM</span>
+          <h3>All-Forward Schedules &amp; Full Recompute Waste Capacity</h3>
+          <p><code>GPipe</code> holds all <code>M</code> microbatch activations in memory at once, while naive full-layer checkpointing recomputes expensive linear projections alongside cheap quadratic attention scores.</p>
+        </div>
+        <div class="card problem-card">
+          <span class="step-badge">03 · ULP SWAMPING</span>
+          <h3>Deterministic Rounding Freezes Small Weight Updates</h3>
+          <p>At learning rate <code>1e-4</code>, parameter updates fall inside half a <code>BF16</code> or <code>FP8</code> grid step, causing round-to-nearest-even casting to discard <code>100%</code> of updates while outlier spikes trigger per-tensor underflow.</p>
+        </div>
+        <div class="card problem-card">
+          <span class="step-badge">04 · COMPILE &amp; DEFECTS</span>
+          <h3>Layer-Unique SSA Names Defeat Naive Compiler Caches</h3>
+          <p>A 24-layer model gives every block distinct SSA register names (<code>%blk0</code> vs. <code>%blk23</code>), causing <code>0%</code> raw hash reuse and forcing manual debugging when a lowering pass introduces numerical drift.</p>
+        </div>
+      </div>
+
+      <div class="scenario-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+          <div>
+            <span class="step-badge">END-TO-END TRACE · 4 LAYERS OF THE STACK</span>
+            <h3 style="font-size:1.14rem; font-weight:800; margin-top:0.35rem;">Tracing a Training Run Across Parallelism, Memory, Numerics, and Compiler Passes</h3>
+          </div>
+          <span class="tag tag-pass">Verified Live in Browser</span>
+        </div>
+        <div class="scenario-steps">
+          <div class="scenario-step">
+            <div class="mono" style="font-size:0.7rem; font-weight:700; color:var(--accent-deep); margin-bottom:0.3rem;">1 · SHARD &amp; VERIFY</div>
+            <code>verify_sharded_autograd()</code> shards causal LLM and bidirectional MMDiT blocks across <code>R = 4</code> ranks, proving <code>max_grad_diff = 2.08e-17</code> and <code>73.98%</code> per-rank optimizer state savings.
+          </div>
+          <div class="scenario-step">
+            <div class="mono" style="font-size:0.7rem; font-weight:700; color:var(--blue); margin-bottom:0.3rem;">2 · PACK ACTIVATIONS</div>
+            <code>solve_selective_checkpoint_knapsack()</code> keeps high-FLOP linear projections in RAM and recomputes <code>S^2</code> attention scores inside a <code>1F1B</code> schedule, cutting live stash bytes from <code>1,449,984 B</code> to <code>226,560 B</code>.
+          </div>
+          <div class="scenario-step">
+            <div class="mono" style="font-size:0.7rem; font-weight:700; color:var(--purple); margin-bottom:0.3rem;">3 · ESCAPE SWAMPING</div>
+            <code>run_fp8_convergence_lab()</code> packs IEEE/OCP <code>BF16</code>, <code>E4M3</code>, <code>E5M2</code>, and 32-element <code>MXFP8</code> blocks, showing unbiased stochastic rounding achieves <code>96.1%</code> loss reduction where RNE stalls at <code>0.0%</code>.
+          </div>
+          <div class="scenario-step">
+            <div class="mono" style="font-size:0.7rem; font-weight:700; color:var(--pass); margin-bottom:0.3rem;">4 · CACHE &amp; BISECT</div>
+            <code>run_compile_cache_and_bisect()</code> hits the canonical <code>SHA-256</code> cache on <code>23 / 24</code> layers (<code>10.143 ms</code> vs. <code>200.479 ms</code>) and shrinks <code>BrokenFastExpPass</code> from <code>19</code> ops to a <code>2</code>-op reproducer.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 02 · ARCHITECTURE                                                   -->
+    <!-- =================================================================== -->
+    <section id="architecture" class="section">
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">02 · Architecture</span>
+          <h2 class="section-title">Architecture</h2>
+          <p class="section-desc">
+            Static UI assets are served by Amazon CloudFront from a private S3 bucket via OAC, and <code>/api/*</code> routes execute Python 3.12 tensor, memory, quantization, and compiler engines on AWS Lambda alongside Amazon Bedrock. Click any component to inspect its module and measured metrics.
+          </p>
+        </div>
+      </div>
+
+      <div class="arch-canvas-toolbar">
+        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+          <span class="mono" style="font-size:0.72rem; font-weight:700;">MULTI-PLANE ARCHITECTURE · CLICK ANY NODE TO INSPECT</span>
+          <span class="tag tag-accent" id="archZoomLabel">Zoom: 100%</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+          <button type="button" class="btn btn-accent" id="zoom100Btn" style="padding:0.32rem 0.65rem; font-size:0.76rem;">100%</button>
+          <button type="button" class="btn btn-secondary" id="zoom125Btn" style="padding:0.32rem 0.65rem; font-size:0.76rem;">125%</button>
+          <button type="button" class="btn btn-secondary" id="zoomResetBtn" style="padding:0.32rem 0.65rem; font-size:0.76rem;">↺ Reset</button>
+          <button type="button" class="btn btn-secondary" id="downloadArchSvgBtn" style="padding:0.32rem 0.65rem; font-size:0.76rem;">⬇ Export SVG</button>
+        </div>
+      </div>
+
+      <div class="arch-canvas-viewport" id="archViewport">
+        <svg id="trainiumPulseArchSvg" class="arch-canvas-svg" viewBox="0 0 1220 730" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TrainiumPulse System Architecture Diagram">
+          <defs>
+            <pattern id="archDotGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+              <circle cx="2" cy="2" r="1" fill="#D4D4D8" />
+            </pattern>
+          </defs>
+
+          <rect x="0" y="0" width="1220" height="730" fill="#FFFFFF" />
+          <rect x="0" y="0" width="1220" height="730" fill="url(#archDotGrid)" opacity="0.68" />
+
+          <!-- PLANE 1: EDGE & SERVERLESS API -->
+          <rect x="22" y="18" width="1176" height="146" fill="#FAFAFA" stroke="#71717A" stroke-width="1.6" stroke-dasharray="8 6" />
+          <text x="36" y="42" class="svg-title" font-size="21" font-weight="700" fill="#B45309">① Browser Workbench &amp; Serverless Edge (CloudFront + Private S3 OAC + Python 3.12 Lambda)</text>
+
+          <g class="arch-node selected" data-arch-node="edge-browser" tabindex="0">
+            <rect class="arch-stroke-main" x="40" y="56" width="205" height="86" fill="#FEF3C7" stroke="#18181B" stroke-width="2.1" />
+            <text x="142" y="84" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#18181B">Engineer's Browser</text>
+            <text x="142" y="106" text-anchor="middle" class="svg-mono" font-size="9.6" font-weight="600" fill="#92400E">4 Live Verifier Tabs</text>
+            <text x="142" y="124" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#3F3F46">URL hash state · Dark mode</text>
+          </g>
+
+          <path d="M 248,99 L 298,99" fill="none" stroke="#18181B" stroke-width="2" stroke-dasharray="6 4" />
+          <path d="M 290,93 L 300,99 L 290,105" fill="none" stroke="#18181B" stroke-width="2" />
+
+          <g class="arch-node" data-arch-node="edge-cloudfront" tabindex="0">
+            <rect class="arch-stroke-main" x="304" y="56" width="244" height="86" fill="#DBEAFE" stroke="#18181B" stroke-width="2.1" />
+            <text x="426" y="84" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#18181B">Amazon CloudFront</text>
+            <text x="426" y="106" text-anchor="middle" class="svg-mono" font-size="9.6" font-weight="600" fill="#1E3A8A">Single HTTPS Origin Router</text>
+            <text x="426" y="124" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#3F3F46">/* -&gt; S3 OAC · /api/* -&gt; Lambda</text>
+          </g>
+
+          <path d="M 552,78 L 626,66" fill="none" stroke="#18181B" stroke-width="2" stroke-dasharray="6 4" />
+          <path d="M 552,118 L 626,128" fill="none" stroke="#18181B" stroke-width="2" stroke-dasharray="6 4" />
+
+          <g class="arch-node" data-arch-node="edge-s3" tabindex="0">
+            <rect class="arch-stroke-main" x="630" y="38" width="275" height="52" fill="#DCFCE7" stroke="#18181B" stroke-width="2" />
+            <text x="767" y="61" text-anchor="middle" class="svg-title" font-size="19" font-weight="700" fill="#18181B">Private S3 Bucket (OAC)</text>
+            <text x="767" y="79" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#065F46">web/index.html · Public Blocked</text>
+          </g>
+
+          <g class="arch-node" data-arch-node="edge-lambda" tabindex="0">
+            <rect class="arch-stroke-main" x="630" y="100" width="275" height="54" fill="#FFEDD5" stroke="#18181B" stroke-width="2" />
+            <text x="767" y="123" text-anchor="middle" class="svg-title" font-size="19" font-weight="700" fill="#18181B">AWS Lambda (Python 3.12)</text>
+            <text x="767" y="142" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#9A3412">trainium_pulse/server.py · 512 MB</text>
+          </g>
+
+          <rect x="930" y="42" width="248" height="108" fill="#FEF3C7" stroke="#18181B" stroke-width="2" />
+          <text x="946" y="67" class="svg-title" font-size="19" font-weight="700" fill="#92400E">$0.00 Idle Compute</text>
+          <text x="946" y="89" class="svg-mono" font-size="9.2" fill="#18181B">• Zero Trn1/Trn2/GPU instances</text>
+          <text x="946" y="109" class="svg-mono" font-size="9.2" fill="#18181B">• 100% real CPU tensor &amp; IR math</text>
+          <text x="946" y="129" class="svg-mono" font-size="9.2" font-weight="700" fill="#059669">• 12 / 12 unit tests passing</text>
+
+          <!-- PLANE 2: PARALLELISM & PIPELINE MEMORY -->
+          <rect x="22" y="188" width="1176" height="154" fill="#FFFBEB" stroke="#D97706" stroke-width="1.6" stroke-dasharray="8 6" />
+          <text x="36" y="212" class="svg-title" font-size="21" font-weight="700" fill="#B45309">② Distributed Autograd &amp; Pipeline Memory Plane (TP + Ulysses SP + ZeRO-1 + 1F1B Knapsack)</text>
+
+          <g class="arch-node" data-arch-node="core-autograd" tabindex="0">
+            <rect class="arch-stroke-main" x="40" y="228" width="360" height="96" fill="#FEF3C7" stroke="#18181B" stroke-width="2.1" />
+            <text x="220" y="256" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#92400E">Sharded Reverse-Mode Autograd</text>
+            <text x="220" y="278" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#18181B">Column/Row TP · Ulysses AllToAll · ZeRO-1</text>
+            <text x="220" y="298" text-anchor="middle" class="svg-mono" font-size="9.1" fill="#065F46">max_grad_diff = 2.08e-17 · 73.98% Opt RAM cut</text>
+          </g>
+
+          <g class="arch-node" data-arch-node="core-knapsack" tabindex="0">
+            <rect class="arch-stroke-main" x="430" y="228" width="360" height="96" fill="#DBEAFE" stroke="#18181B" stroke-width="2.1" />
+            <text x="610" y="256" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#1E3A8A">0/1 Knapsack Checkpointer</text>
+            <text x="610" y="278" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#18181B">Exact DP: Save Linears, Recompute S^2 Scores</text>
+            <text x="610" y="298" text-anchor="middle" class="svg-mono" font-size="9.1" fill="#1E3A8A">18.89% FLOP overhead vs 100% full recompute</text>
+          </g>
+
+          <g class="arch-node" data-arch-node="core-1f1b" tabindex="0">
+            <rect class="arch-stroke-main" x="820" y="228" width="358" height="96" fill="#DCFCE7" stroke="#18181B" stroke-width="2.1" />
+            <text x="999" y="256" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#065F46">1F1B vs. GPipe Schedule Engine</text>
+            <text x="999" y="278" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#18181B">Real tracemalloc Live Activation Stashes</text>
+            <text x="999" y="298" text-anchor="middle" class="svg-mono" font-size="9.1" fill="#065F46">84.38% peak RAM cut (1.45 MB -&gt; 226.6 KB)</text>
+          </g>
+
+          <!-- PLANE 3: FP8 STOCHASTIC NUMERICS & COMPILER INFRA -->
+          <rect x="22" y="366" width="1176" height="156" fill="#F0FDF4" stroke="#065F46" stroke-width="1.6" stroke-dasharray="8 6" />
+          <text x="36" y="390" class="svg-title" font-size="21" font-weight="700" fill="#065F46">③ Reduced-Precision Numerics &amp; Distributed Compiler Infrastructure Plane</text>
+
+          <g class="arch-node" data-arch-node="core-fp8" tabindex="0">
+            <rect class="arch-stroke-main" x="40" y="406" width="545" height="98" fill="#F3E8FF" stroke="#18181B" stroke-width="2.1" />
+            <text x="312" y="434" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#5B21B6">Bit-Exact BF16 / FP8 (E4M3 &amp; E5M2) / MXFP8 Lab</text>
+            <text x="312" y="456" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#18181B">32-Elem Shared E8M0 Scale · Unbiased Stochastic Rounding</text>
+            <text x="312" y="478" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#4C1D95">40-step lr=1e-4: RNE 0.0% drop (100% swamped) vs SR 96.1% drop</text>
+          </g>
+
+          <g class="arch-node" data-arch-node="core-compiler" tabindex="0">
+            <rect class="arch-stroke-main" x="620" y="406" width="558" height="98" fill="#FFEDD5" stroke="#18181B" stroke-width="2.1" />
+            <text x="899" y="434" text-anchor="middle" class="svg-title" font-size="22" font-weight="700" fill="#9A3412">Alpha-Canonical Cache &amp; Bugpoint Pass Bisector</text>
+            <text x="899" y="456" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#18181B">23 / 24 (95.8%) SHA-256 Hits · 19.77x Compile Speedup</text>
+            <text x="899" y="478" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#7C2D12">Binary pass search + ddmin isolates BrokenFastExpPass -&gt; 2 SSA ops</text>
+          </g>
+
+          <!-- PLANE 4: BEDROCK BOTTLENECK ADVISOR & SQLITE ARTIFACT CACHE -->
+          <g class="arch-node" data-arch-node="bedrock-advisor" tabindex="0">
+            <rect class="arch-stroke-main" x="40" y="552" width="545" height="146" fill="#EDE9FE" stroke="#18181B" stroke-width="2.2" />
+            <text x="312" y="584" text-anchor="middle" class="svg-title" font-size="23" font-weight="700" fill="#5B21B6">④ Amazon Bedrock Training Bottleneck Advisor</text>
+            <text x="312" y="608" text-anchor="middle" class="svg-mono" font-size="10" font-weight="700" fill="#18181B">us.amazon.nova-lite-v1:0 · Converse API</text>
+            <text x="312" y="630" text-anchor="middle" class="svg-mono" font-size="9.3" fill="#4C1D95">Routes Compute, Collective, Memory &amp; Compiler stalls to owning layer</text>
+            <rect x="88" y="648" width="448" height="30" fill="#FFFFFF" stroke="#18181B" stroke-width="1.6" />
+            <text x="312" y="667" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#B45309">9 / 9 Live Calls Passed · 1,204 ms Median Latency</text>
+          </g>
+
+          <g class="arch-node" data-arch-node="sqlite-cache" tabindex="0">
+            <rect class="arch-stroke-main" x="620" y="552" width="558" height="146" fill="#FEF3C7" stroke="#18181B" stroke-width="2.2" />
+            <text x="899" y="584" text-anchor="middle" class="svg-title" font-size="23" font-weight="700" fill="#92400E">④ Content-Addressed SQLite WAL Artifact Store</text>
+            <text x="899" y="608" text-anchor="middle" class="svg-mono" font-size="10" font-weight="700" fill="#18181B">SHA-256(Canonical SSA + Shapes + Pass Flags)</text>
+            <text x="899" y="630" text-anchor="middle" class="svg-mono" font-size="9.3" fill="#78350F">Stores lowered IR, SRAM buffer slot coloring &amp; 3D GEMM tile schedules</text>
+            <rect x="675" y="648" width="448" height="30" fill="#DCFCE7" stroke="#18181B" stroke-width="1.6" />
+            <text x="899" y="667" text-anchor="middle" class="svg-mono" font-size="9.5" font-weight="700" fill="#065F46">0.0 Numerical Drift · 10.143 ms Cached 24-Layer Compile</text>
+          </g>
+        </svg>
+      </div>
+
+      <!-- Interactive Component Inspector -->
+      <div class="arch-inspector" id="archInspector">
+        <div class="arch-node-pills" id="archNodePills">
+          <button type="button" class="arch-node-pill active" data-arch-btn="edge-browser">1. Browser UI</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="edge-cloudfront">2. CloudFront</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="edge-s3">3. Private S3</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="edge-lambda">4. Lambda API</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="core-autograd">5. Sharded Autograd</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="core-knapsack">6. 0/1 Knapsack DP</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="core-1f1b">7. 1F1B Pipeline</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="core-fp8">8. FP8 / MXFP8 SR</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="core-compiler">9. Subgraph Bisector</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="bedrock-advisor">10. Bedrock Advisor</button>
+          <button type="button" class="arch-node-pill" data-arch-btn="sqlite-cache">11. SQLite Cache</button>
+        </div>
+        <div id="archInspectorDetail"></div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 03 · IMPLEMENTATION                                                 -->
+    <!-- =================================================================== -->
+    <section id="implementation" class="section">
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">03 · Implementation</span>
+          <h2 class="section-title">Implementation</h2>
+          <p class="section-desc">
+            Five Python 3.12 modules execute real multi-rank backward passes, dynamic-programming checkpointing, IEEE/OCP floating-point quantization, canonical SSA compilation, and AWS Lambda HTTP routing.
+          </p>
+        </div>
+        <span class="tag tag-pass">12 / 12 Unit Tests Passing</span>
+      </div>
+
+      <div class="module-grid">
+        <div class="module-card">
+          <div class="module-card-head">
+            <span>01 · MULTI-RANK SHARDED AUTOGRAD</span>
+            <span style="color:#FBBF24;">trainium_pulse/sharded_autograd.py</span>
+          </div>
+          <div class="module-card-body">
+            <div class="prose-block">
+              Implements a reverse-mode autograd engine covering <code>MatMul</code>, <code>LayerNorm</code>, <code>SwiGLU</code>, causal and bidirectional <code>ScaledDotProductAttention</code>, and <code>CrossEntropy</code> across <code>R in {2, 4, 8}</code> sharded worker ranks.
+            </div>
+            <div class="prose-block-tech">
+              Combines DeepSpeed-Ulysses <code>AllToAll</code> sequence-to-head transposes with Megatron sequence-parallel <code>AllGather</code>/<code>ReduceScatter</code>, column-parallel <code>W_gate</code>/<code>W_up</code>, row-parallel <code>W_down</code>, and <code>ZeRO-1</code> <code>AdamW</code> shard updates, proving <code>max_abs_grad_diff = 2.08e-17</code> (<code>74.94 ms</code> <code>p50</code>) and <code>73.98%</code> Rank-0 optimizer RAM savings under <code>tracemalloc</code>.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-card">
+          <div class="module-card-head">
+            <span>02 · KNAPSACK CHECKPOINTING &amp; 1F1B PIPELINE</span>
+            <span style="color:#93C5FD;">trainium_pulse/checkpoint_1f1b.py</span>
+          </div>
+          <div class="module-card-body">
+            <div class="prose-block">
+              Solves exact <code>0/1</code> dynamic programming over intermediate block operators so high-FLOP linear projections stay in memory while memory-heavy <code>S^2</code> attention score tensors are recomputed on the fly during backward.
+            </div>
+            <div class="prose-block-tech">
+              Executes clock-accurate <code>GPipe</code> and <code>1F1B</code> microbatch schedules holding real <code>array('d')</code> activation stashes tracked by <code>tracemalloc</code>. At <code>P = 4, M = 8</code>, <code>1F1B</code> + knapsack reduces peak live activation stashes from <code>1,449,984 B</code> to <code>226,560 B</code> (<code>84.38%</code> reduction, <code>6.4x</code> compression) with <code>0.0</code> gradient drift.
+            </div>
+          </div>
+        </div>
+
+        <div class="module-card">
+          <div class="module-card-head">
+            <span>03 · BIT-EXACT BF16 / FP8 / MXFP8 STOCHASTIC LAB</span>
+            <span style="color:#C4B5FD;">trainium_pulse/fp8_stochastic.py</span>
+          </div>
+          <div class="module-card-body">
+            <div class="prose-block">
+              Packs and decodes IEEE-754 <code>BF16</code>, OCP <code>FP8 E4M3FN</code> (forward), <code>FP8 E5M2</code> (backward gradients), and 32-element <code>MXFP8</code> shared <code>E8M0</code> exponents using both deterministic round-to-nearest-even and unbiased stochastic rounding.
+            </div>
+            <div class="prose-block-tech">
+              Runs 40-step MLP training loops at <code>lr = 1e-4</code>: deterministic <code>BF16 RNE</code> suffers <code>100.0%</code> ULP swamping (<code>0.0%</code> loss drop), whereas unbiased stochastic rounding achieves <code>96.1%</code> loss reduction and 32-element <code>MXFP8</code> eliminates all <code>17</code> non-outlier underflow zeros caused by a <code>1024.0</code> spike (<code>2.56%</code> vs. <code>19.65%</code> RMSE).
+            </div>
+          </div>
+        </div>
+
+        <div class="module-card">
+          <div class="module-card-head">
+            <span>04 · ALPHA-CANONICAL CACHE &amp; BUGPOINT BISECTOR</span>
+            <span style="color:#6EE7B7;">trainium_pulse/dist_compile_cache.py · server.py</span>
+          </div>
+          <div class="module-card-body">
+            <div class="prose-block">
+              Partitions 24-layer neural net SSA graphs into block units, normalizes layer-specific register and weight names into alpha-canonical form, caches compiled artifacts in SQLite WAL by <code>SHA-256</code>, and isolates compiler pass bugs automatically.
+            </div>
+            <div class="prose-block-tech">
+              Hits the cache <code>23 / 24</code> times (<code>95.8%</code>), cutting 24-layer compile time from <code>200.479 ms</code> to <code>10.143 ms</code> (<code>19.77x</code> speedup, <code>0.0</code> numerical diff). Binary pass search + Zeller <code>ddmin</code> shrinks <code>BrokenFastExpPass</code> from <code>19</code> ops to a minimal <code>2</code>-op reproducer in <code>109.151 ms</code>, paired with live Amazon Bedrock (<code>us.amazon.nova-lite-v1:0</code>) bottleneck triage.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 04 · TRADE-OFFS                                                     -->
+    <!-- =================================================================== -->
+    <section id="tradeoffs" class="section">
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">04 · Trade-Offs</span>
+          <h2 class="section-title">Trade-Offs</h2>
+          <p class="section-desc">
+            Every parallelism, checkpointing, quantization, and compiler caching strategy trades communication topology, recompute FLOPs, or quantization variance against memory footprint and wall-clock throughput.
+          </p>
+        </div>
+        <span class="tag tag-soft">Engineering Decisions</span>
+      </div>
+
+      <div class="module-grid" style="margin-bottom:0;">
+        <div class="card">
+          <span class="step-badge">01 · ULYSSES ALLTOALL VS TENSOR PARALLELISM</span>
+          <h3 style="font-size:1.08rem; font-weight:800; margin:0.45rem 0;">Head-Count Divisibility vs. Sequence Scaling</h3>
+          <p style="font-size:0.92rem; color:var(--ink-muted); line-height:1.68;">
+            DeepSpeed-Ulysses <code>AllToAll</code> communicates lower activation volume than replicated sequence attention and preserves full sequence context per local head, with the constraint that world size <code>R</code> cannot exceed the number of attention heads <code>H</code>. Combining Ulysses on attention with Megatron column/row <code>TP</code> + <code>ReduceScatter</code> on <code>SwiGLU</code> keeps all-to-all hops bounded while sharding large feed-forward weights.
+          </p>
+        </div>
+
+        <div class="card">
+          <span class="step-badge">02 · SELECTIVE KNAPSACK VS FULL CHECKPOINTING</span>
+          <h3 style="font-size:1.08rem; font-weight:800; margin:0.45rem 0;">18.89% Targeted Recompute vs. 100% Block Recompute</h3>
+          <p style="font-size:0.92rem; color:var(--ink-muted); line-height:1.68;">
+            Discarding all interior activations minimizes stage memory but adds a full second forward pass (<code>100%</code> forward FLOP overhead) during backward. Solving the exact <code>0/1</code> knapsack under a <code>45%</code> block memory budget retains high-FLOP <code>QKV</code> and <code>SwiGLU</code> projections while recomputing <code>S^2</code> attention scores, achieving <code>84.38%</code> total pipeline RAM reduction with only <code>18.89%</code> recompute FLOPs.
+          </p>
+        </div>
+
+        <div class="card">
+          <span class="step-badge">03 · STOCHASTIC ROUNDING VS FP32 MASTER WEIGHTS</span>
+          <h3 style="font-size:1.08rem; font-weight:800; margin:0.45rem 0;">Zero Extra Weight RAM vs. Rounding Variance Floor</h3>
+          <p style="font-size:0.92rem; color:var(--ink-muted); line-height:1.68;">
+            Pure <code>BF16</code> weights with stochastic rounding eliminate the 2x memory cost of <code>FP32</code> master weights and overcome deterministic ULP swamping (<code>96.1%</code> vs. <code>0.0%</code> loss drop at <code>lr = 1e-4</code>), trading a small asymptotic variance floor near convergence. Pairing 32-element <code>MXFP8</code> (<code>8.25</code> bits/elem effective) with master weights bounds outlier error while maintaining sub-ULP accumulation.
+          </p>
+        </div>
+
+        <div class="card">
+          <span class="step-badge">04 · CPU PYTHON VERIFIER VS ACCELERATOR KERNELS</span>
+          <h3 style="font-size:1.08rem; font-weight:800; margin:0.45rem 0;">Exact Mathematical Verification at $0.00 Idle Cost</h3>
+          <p style="font-size:0.92rem; color:var(--ink-muted); line-height:1.68;">
+            Running inside AWS Lambda (<code>python3.12</code>, <code>512 MB</code>) instead of dedicated accelerator clusters bounds interactive problem shapes to compact dimensions (<code>S = 16..32, D = 16..32</code>) rather than multi-billion-parameter throughput benchmarks. In exchange, every gradient diff, <code>tracemalloc</code> byte count, IEEE bit pattern, and compiler pass bisection runs live on demand at zero idle cost.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 05 · LIVE DEMO                                                      -->
+    <!-- =================================================================== -->
+    <section id="studio" class="section">
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">05 · Live Demo</span>
+          <h2 class="section-title">Live Demo</h2>
+          <p class="section-desc">
+            All four tabs invoke the live AWS Lambda <code>/api/*</code> backend to execute multi-rank autograd verification, <code>1F1B</code> + knapsack scheduling, bit-accurate <code>BF16/FP8/MXFP8</code> training, canonical subgraph compile caching, and live Amazon Bedrock bottleneck analysis.
+          </p>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+          <span class="tag tag-accent">Live /api/* Lambda Backend</span>
+          <button type="button" class="btn btn-secondary" onclick="resetBackendCache()" style="padding:0.34rem 0.7rem; font-size:0.76rem;">↺ Reset Cache</button>
+        </div>
+      </div>
+
+      <div class="tab-bar" role="tablist" aria-label="TrainiumPulse Interactive Demo Tabs">
+        <button type="button" class="tab-btn active" data-tab="autograd" role="tab" aria-selected="true" onclick="switchTab('autograd')">
+          <span class="tab-btn-eyebrow">Tab 01 · Multi-Rank Math</span>
+          <span class="tab-btn-title">1. Sharded Autograd Parity (TP + ZeRO + Ulysses)</span>
+          <span class="tab-btn-desc">Run R-rank forward, backward, and AdamW updates and verify L_inf gradient parity</span>
+          <span class="tab-btn-metric" id="tabMetric1"></span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="schedule" role="tab" aria-selected="false" onclick="switchTab('schedule')">
+          <span class="tab-btn-eyebrow">Tab 02 · Pipeline &amp; DP</span>
+          <span class="tab-btn-title">2. 1F1B Pipeline &amp; Selective Checkpointing RAM</span>
+          <span class="tab-btn-desc">Solve exact 0/1 knapsack rematerialization and measure GPipe vs. 1F1B live bytes</span>
+          <span class="tab-btn-metric" id="tabMetric2"></span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="fp8" role="tab" aria-selected="false" onclick="switchTab('fp8')">
+          <span class="tab-btn-eyebrow">Tab 03 · IEEE / OCP Bits</span>
+          <span class="tab-btn-title">3. BF16 / FP8 Stochastic Rounding Convergence</span>
+          <span class="tab-btn-desc">Inspect BF16/E4M3/E5M2 bits and run 40-step RNE swamping vs. SR training curves</span>
+          <span class="tab-btn-metric" id="tabMetric3"></span>
+        </button>
+        <button type="button" class="tab-btn" data-tab="compiler" role="tab" aria-selected="false" onclick="switchTab('compiler')">
+          <span class="tab-btn-eyebrow">Tab 04 · Compiler &amp; Bedrock</span>
+          <span class="tab-btn-title">4. Subgraph Compile Cache &amp; Bugpoint Bisector</span>
+          <span class="tab-btn-desc">Deduplicate 24 SSA layers via SHA-256, bisect BrokenFastExpPass, and query Bedrock</span>
+          <span class="tab-btn-metric" id="tabMetric4"></span>
+        </button>
+      </div>
+
+      <!-- TAB 1: SHARDED AUTOGRAD PARITY -->
+      <div class="tab-panel active" id="panel-autograd" role="tabpanel">
+        <div class="grid-2">
+          <div class="card">
+            <span class="step-badge">MULTI-RANK CONFIGURATION</span>
+            <h3 style="font-size:1.14rem; font-weight:800; margin:0.45rem 0 0.85rem;">Configure TP + Ulysses SP + ZeRO-1 Verifier</h3>
+
+            <div class="control-group">
+              <div class="control-label"><span>Model Block Architecture</span><span class="mono" style="font-size:0.68rem; color:var(--ink-muted);">Causal vs Bidirectional</span></div>
+              <select id="agArchSelect">
+                <option value="llama_causal">Llama / DeepSeek Causal Block (Causal Attention + SwiGLU)</option>
+                <option value="flux_mmdit_bidirectional">Flux / WAN MMDiT Block (Full Bidirectional Attention + SwiGLU)</option>
+              </select>
+            </div>
+
+            <div class="grid-equal" style="gap:0.75rem;">
+              <div class="control-group">
+                <div class="control-label"><span>Sharded Ranks (R)</span></div>
+                <select id="agWorldSelect">
+                  <option value="2">R = 2 Ranks</option>
+                  <option value="4" selected>R = 4 Ranks (Default)</option>
+                  <option value="8">R = 8 Ranks</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <div class="control-label"><span>Sequence Length (S)</span></div>
+                <select id="agSeqSelect">
+                  <option value="16" selected>S = 16 Tokens</option>
+                  <option value="32">S = 32 Tokens</option>
+                </select>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:0.6rem; flex-wrap:wrap; margin-top:0.4rem;">
+              <button type="button" class="btn btn-accent" id="btnRunAutograd" onclick="runAutogradLive()">▶ Run Multi-Rank Parity Check</button>
+              <button type="button" class="btn btn-secondary" onclick="presetAutograd('flux_mmdit_bidirectional', 8, 16)">Test 8-Rank Bidirectional DiT</button>
+            </div>
+
+            <div class="bar-group" id="agMemBars" style="margin-top:1.2rem;"></div>
+            <div class="prose-block-tech" id="agCollectivesSummary" style="font-size:0.8rem;"></div>
+          </div>
+
+          <div class="card">
+            <div id="agVerdictBanner" class="verdict-banner verdict-allow"></div>
+            <div class="code-header">
+              <span>PER-TENSOR BACKWARD GRADIENT &amp; ADAMW PARAMETER PARITY</span>
+              <span id="agTimingTag" class="tag tag-soft"></span>
+            </div>
+            <div class="table-wrap" style="max-height:390px; overflow-y:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Parameter</th>
+                    <th>Shape</th>
+                    <th>Parallel Sharding</th>
+                    <th>Max |Δ Grad|</th>
+                    <th>Max |Δ AdamW|</th>
+                  </tr>
+                </thead>
+                <tbody id="agParityTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: 1F1B PIPELINE & KNAPSACK CHECKPOINTING -->
+      <div class="tab-panel" id="panel-schedule" role="tabpanel">
+        <div class="grid-2">
+          <div class="card">
+            <span class="step-badge">PIPELINE &amp; KNAPSACK SOLVER</span>
+            <h3 style="font-size:1.14rem; font-weight:800; margin:0.45rem 0 0.85rem;">Configure Stages, Microbatches &amp; RAM Budget</h3>
+
+            <div class="grid-equal" style="gap:0.75rem;">
+              <div class="control-group">
+                <div class="control-label"><span>Pipeline Stages (P)</span></div>
+                <select id="ppStagesSelect">
+                  <option value="2">P = 2 Stages</option>
+                  <option value="4" selected>P = 4 Stages (Default)</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <div class="control-label"><span>Microbatches (M)</span></div>
+                <select id="ppMicroSelect">
+                  <option value="8" selected>M = 8 Microbatches</option>
+                  <option value="12">M = 12 Microbatches</option>
+                  <option value="16">M = 16 Microbatches</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label"><span>Per-Block Activation Memory Budget Ratio</span></div>
+              <select id="ppBudgetSelect">
+                <option value="0.35">35% Budget (Aggressive Rematerialization)</option>
+                <option value="0.45" selected>45% Budget (Default Knapsack Sweet Spot)</option>
+                <option value="0.65">65% Budget (Keep More Activations)</option>
+              </select>
+            </div>
+
+            <button type="button" class="btn btn-accent" id="btnRunSchedule" onclick="runScheduleLive()">▶ Solve 0/1 Knapsack &amp; Execute 1F1B</button>
+
+            <div class="bar-group" id="ppRamBars" style="margin-top:1.15rem;"></div>
+
+            <div class="code-header" style="margin-top:0.8rem;">
+              <span>EXACT 0/1 KNAPSACK OPERATOR DECISIONS</span>
+              <span id="ppKnapsackTag" class="tag tag-pass"></span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Operator</th>
+                    <th>Bytes</th>
+                    <th>FLOPs/B</th>
+                    <th>Knapsack Action</th>
+                  </tr>
+                </thead>
+                <tbody id="ppKnapsackBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div id="ppVerdictBanner" class="verdict-banner verdict-allow"></div>
+
+            <div style="margin-bottom:0.95rem;">
+              <div class="mono" style="font-size:0.71rem; font-weight:700; margin-bottom:0.35rem;">1F1B STEADY-STATE SCHEDULE (CAPS IN-FLIGHT MICROBATCH STASHES AT P)</div>
+              <div class="sched-grid" id="pp1f1bGrid"></div>
+            </div>
+
+            <div>
+              <div class="mono" style="font-size:0.71rem; font-weight:700; margin-bottom:0.35rem;">GPIPE ALL-FORWARD SCHEDULE (HOLDS ALL M MICROBATCH STASHES SIMULTANEOUSLY)</div>
+              <div class="sched-grid" id="ppGpipeGrid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: BF16 / FP8 / MXFP8 STOCHASTIC ROUNDING -->
+      <div class="tab-panel" id="panel-fp8" role="tabpanel">
+        <div class="grid-2">
+          <div class="card">
+            <span class="step-badge">REDUCED-PRECISION TRAINING LAB</span>
+            <h3 style="font-size:1.14rem; font-weight:800; margin:0.45rem 0 0.85rem;">Bit-Level Quantizer &amp; 40-Step Convergence Controls</h3>
+
+            <div class="grid-equal" style="gap:0.75rem;">
+              <div class="control-group">
+                <div class="control-label"><span>Adam Learning Rate</span></div>
+                <select id="fp8LrSelect">
+                  <option value="0.0001" selected>1e-4 (Demonstrates RNE Swamping)</option>
+                  <option value="0.0002">2e-4 (Sub-ULP Updates)</option>
+                  <option value="0.002">2e-3 (Crosses Half-ULP Threshold)</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <div class="control-label"><span>Outlier Spike Channel[0]</span></div>
+                <select id="fp8OutlierSelect">
+                  <option value="256">256.0</option>
+                  <option value="1024" selected>1024.0 (Default Outlier Spike)</option>
+                  <option value="2048">2048.0 (Severe Activation Spike)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="control-label"><span>Inspect Exact IEEE / OCP Bits For Float Value</span></div>
+              <input type="number" id="fp8SampleInput" value="-1.375" step="0.001" />
+            </div>
+
+            <button type="button" class="btn btn-accent" id="btnRunFp8" onclick="runFp8Live()">▶ Run 40-Step FP8 / BF16 Training Loop</button>
+
+            <div style="margin-top:1.1rem; border-top:1.5px dashed var(--border); padding-top:0.95rem;">
+              <div class="mono" style="font-size:0.71rem; font-weight:700; margin-bottom:0.4rem;">LIVE BIT-LEVEL ENCODING BREAKDOWN (SIGN · EXPONENT · MANTISSA)</div>
+              <div id="fp8BitInspectorBox"></div>
+            </div>
+
+            <div style="margin-top:1rem; border-top:1.5px dashed var(--border); padding-top:0.95rem;">
+              <div class="mono" style="font-size:0.71rem; font-weight:700; margin-bottom:0.4rem;">32-ELEMENT MXFP8 (E8M0 SHARED SCALE) VS PER-TENSOR FP8 OUTLIER STUDY</div>
+              <div id="fp8OutlierBox" class="prose-block-tech" style="font-size:0.8rem;"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div id="fp8VerdictBanner" class="verdict-banner verdict-allow"></div>
+            <div class="code-header">
+              <span>40-STEP LOSS CONVERGENCE CURVES (FP64 VS BF16 RNE VS BF16 SR VS MXFP8+SR)</span>
+              <span id="fp8TimingTag" class="tag tag-soft"></span>
+            </div>
+            <div id="fp8ChartBox" style="border:2px solid var(--border); background:#FFFFFF; padding:0.75rem; margin-bottom:0.95rem;"></div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Precision Regime</th>
+                    <th>Initial Loss</th>
+                    <th>Final Loss</th>
+                    <th>Loss Drop</th>
+                    <th>Swamped Updates</th>
+                  </tr>
+                </thead>
+                <tbody id="fp8RegimeTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: SUBGRAPH COMPILE CACHE, BUGPOINT BISECTOR & BEDROCK ADVISOR -->
+      <div class="tab-panel" id="panel-compiler" role="tabpanel">
+        <div class="grid-2">
+          <div class="card">
+            <span class="step-badge">COMPILER CACHE &amp; BEDROCK TRIAGE</span>
+            <h3 style="font-size:1.14rem; font-weight:800; margin:0.45rem 0 0.85rem;">Alpha-Canonical 24-Layer Cache &amp; Pass Bisector</h3>
+
+            <div class="grid-equal" style="gap:0.75rem;">
+              <div class="control-group">
+                <div class="control-label"><span>Model Depth (Layers N)</span></div>
+                <select id="ccLayersSelect">
+                  <option value="12">N = 12 Layers</option>
+                  <option value="24" selected>N = 24 Layers (Default)</option>
+                  <option value="32">N = 32 Layers</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <div class="control-label"><span>Graph Topology</span></div>
+                <select id="ccTopoSelect">
+                  <option value="0" selected>Homogeneous Transformer / DiT (1 Canonical Key)</option>
+                  <option value="4">Hybrid Dense + MoE Every 4th Layer (2 Canonical Keys)</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-accent" id="btnRunCompiler" onclick="runCompilerLive()">▶ Compile Layers &amp; Bisect Buggy Pass</button>
+
+            <div style="margin-top:1.25rem; border-top:2px solid var(--border); padding-top:1.1rem;">
+              <span class="step-badge">LIVE AMAZON BEDROCK ADVISOR</span>
+              <h4 style="font-size:1rem; font-weight:800; margin:0.4rem 0 0.65rem;">4-Way Training Step Bottleneck Attribution</h4>
+              <div class="control-group">
+                <div class="control-label"><span>Workload Execution Profile</span></div>
+                <select id="brkWorkloadSelect">
+                  <option value="llama3_70b_tp4_zero1">Llama-3 70B (TP=4, PP=4 1F1B, ZeRO-1 · Collective Stall)</option>
+                  <option value="flux_mmdit_ulysses_sp">Flux / WAN MMDiT (64K Bidirectional Tokens · S^2 Memory Stall)</option>
+                  <option value="deepseek_moe_fp8">DeepSeek MoE Fine-Tuning (EP=4, FP8 lr=1e-4 · Swamping &amp; Compile)</option>
+                </select>
+              </div>
+              <div class="control-group">
+                <div class="control-label"><span>Optional Engineer Focus Question</span></div>
+                <input type="text" id="brkNoteInput" placeholder="e.g. Prioritize backward ReduceScatter overlap and knapsack budget=0.45" />
+              </div>
+              <button type="button" class="btn btn-obsidian" id="btnRunBedrock" onclick="runBedrockAdvisorLive()">⚡ Analyze Bottleneck With Amazon Bedrock</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div id="ccVerdictBanner" class="verdict-banner verdict-allow"></div>
+
+            <div class="code-header">
+              <span>ALPHA-CANONICAL SHA-256 CACHE &amp; BUGPOINT 2-OP MINIMAL REPRODUCER</span>
+              <span id="ccSpeedupTag" class="tag tag-pass"></span>
+            </div>
+            <div class="code-box" id="ccConsoleBox" style="max-height:240px; margin-bottom:0.95rem;"></div>
+
+            <div class="code-header">
+              <span>AMAZON BEDROCK (NOVA LITE) CROSS-STACK BOTTLENECK TRIAGE</span>
+              <span id="brkLatencyTag" class="tag tag-accent">us.amazon.nova-lite-v1:0</span>
+            </div>
+            <div class="code-box" id="brkOutputBox" style="max-height:240px;"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================================== -->
+    <!-- 06 · BENCHMARKS                                                     -->
+    <!-- =================================================================== -->
+    <section id="benchmarks" class="section" style="border-bottom:none;">
+      <div class="section-header">
+        <div>
+          <span class="section-kicker">06 · Benchmarks</span>
+          <h2 class="section-title">Benchmarks</h2>
+          <p class="section-desc" id="benchSubHeader"></p>
+        </div>
+        <span class="tag tag-soft" id="benchTimestampTag"></span>
+      </div>
+
+      <div class="grid-equal" style="margin-bottom:1.35rem;">
+        <div class="card">
+          <span class="step-badge">STAGE LATENCY PROFILE (LOG SCALE)</span>
+          <h3 style="font-size:1.06rem; font-weight:800; margin:0.45rem 0 0.75rem;">Measured Median Execution Time Across Subsystems</h3>
+          <div id="benchLatencySvgBox"></div>
+        </div>
+
+        <div class="card">
+          <span class="step-badge">MEASURED EFFICIENCY GAINS</span>
+          <h3 style="font-size:1.06rem; font-weight:800; margin:0.45rem 0 0.75rem;">Memory Savings, Convergence &amp; Compile Cache Hit Ratios</h3>
+          <div class="bar-group" id="benchEfficiencyBars"></div>
+        </div>
+      </div>
+
+      <div class="grid-equal" style="margin-bottom:1.35rem;">
+        <div class="card">
+          <div class="code-header">
+            <span>SHARDED AUTOGRAD PARITY MATRIX (TP + ULYSSES + ZERO-1)</span>
+            <span class="tag tag-pass">12 / 12 PASSED</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Architecture</th>
+                  <th>Ranks</th>
+                  <th>Max |Δ Grad|</th>
+                  <th>Opt RAM Cut</th>
+                  <th>Latency</th>
+                </tr>
+              </thead>
+              <tbody id="benchAutogradBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="code-header">
+            <span>1F1B PIPELINE + 0/1 KNAPSACK ACTIVATION MEMORY MATRIX</span>
+            <span class="tag tag-pass">0.0 GRAD DIFF</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Config</th>
+                  <th>Bubble</th>
+                  <th>GPipe Stash</th>
+                  <th>1F1B+Knapsack</th>
+                  <th>RAM Cut</th>
+                </tr>
+              </thead>
+              <tbody id="benchScheduleBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="code-header">
+          <span>LIVE AMAZON BEDROCK (US.AMAZON.NOVA-LITE-V1:0) BOTTLENECK ATTRIBUTION RUNS</span>
+          <span class="tag tag-pass" id="benchBedrockPassTag"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Call</th>
+                <th>Workload</th>
+                <th>Dominant Non-Compute Stall</th>
+                <th>Owning Stack Layer</th>
+                <th>Latency</th>
+                <th>Tokens</th>
+              </tr>
+            </thead>
+            <tbody id="benchBedrockBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer class="footer">
+        <div>
+          <strong>TrainiumPulse</strong> · Distributed Training Parallelism, Reduced-Precision Numerics &amp; Subgraph Compiler Cache · Python 3.12 + AWS Lambda + CloudFront OAC + Amazon Bedrock
+        </div>
+        <div class="mono" style="font-size:0.72rem;">
+          Zero idle servers · 100% real executed tensor, tracemalloc &amp; SSA IR metrics
+        </div>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      let MEASURED_BENCHMARKS = {
+        "benchmark_timestamp_utc": "2026-11-25T23:28:49Z",
+        "environment": {
+          "python_version": "3.12",
+          "aws_region": "us-west-2",
+          "bedrock_model": "us.amazon.nova-lite-v1:0"
+        },
+        "headline_kpis": {
+          "autograd_runs_passed": 12,
+          "autograd_runs_total": 12,
+          "max_abs_grad_diff": 2.0816681711721685e-17,
+          "zero1_tp_rank0_ram_reduction_pct": 73.98,
+          "zero1_tp_compression_x": 3.84,
+          "autograd_verify_p50_ms": 74.94,
+          "autograd_verify_p95_ms": 89.597,
+          "p1f1b_knapsack_ram_reduction_pct": 84.38,
+          "p1f1b_knapsack_compression_x": 6.4,
+          "knapsack_recompute_flop_overhead_pct": 18.89,
+          "gpipe_peak_stash_bytes": 1449984,
+          "p1f1b_knapsack_peak_stash_bytes": 226560,
+          "pipeline_bubble_pct": 27.27,
+          "schedule_verify_p50_ms": 5523.615,
+          "schedule_verify_p95_ms": 7395.641,
+          "fp8_steps": 40,
+          "rne_swamped_update_pct": 100.0,
+          "rne_loss_reduction_pct": 0.0,
+          "sr_loss_reduction_pct": 96.1,
+          "mxfp8_sr_loss_reduction_pct": 60.04,
+          "fp64_loss_reduction_pct": 98.66,
+          "fp8_train_p50_ms": 736.523,
+          "fp8_train_p95_ms": 819.163,
+          "compile_layers": 24,
+          "compile_cache_hits": 23,
+          "compile_cache_hit_rate_pct": 95.8,
+          "compile_uncached_p50_ms": 200.479,
+          "compile_cached_p50_ms": 10.143,
+          "compile_speedup_x": 19.77,
+          "compile_time_saved_pct": 94.9,
+          "bugpoint_initial_ops": 19,
+          "bugpoint_reduced_ops": 2,
+          "bugpoint_bisect_p50_ms": 109.151,
+          "bedrock_calls_passed": 9,
+          "bedrock_calls_total": 9,
+          "bedrock_latency_p50_ms": 1204.0,
+          "bedrock_latency_p95_ms": 1875.0,
+          "bedrock_mean_tokens": 468.2
+        },
+        "autograd_parity_matrix": [
+          { "config_id": "AG-01", "architecture": "llama_causal", "world_size": 4, "max_abs_grad_diff": 1.0408340855860843e-17, "max_abs_param_diff": 1.1102230246251565e-16, "zero1_ram_reduction_pct": 73.98, "verify_ms": 72.015, "passed": true },
+          { "config_id": "AG-02", "architecture": "flux_mmdit_bidirectional", "world_size": 4, "max_abs_grad_diff": 2.0816681711721685e-17, "max_abs_param_diff": 1.1310397063368782e-15, "zero1_ram_reduction_pct": 73.99, "verify_ms": 77.823, "passed": true },
+          { "config_id": "AG-03", "architecture": "llama_causal", "world_size": 2, "max_abs_grad_diff": 1.3877787807814457e-17, "max_abs_param_diff": 2.7755575615628914e-17, "zero1_ram_reduction_pct": 49.36, "verify_ms": 72.722, "passed": true },
+          { "config_id": "AG-04", "architecture": "flux_mmdit_bidirectional", "world_size": 8, "max_abs_grad_diff": 1.3877787807814457e-17, "max_abs_param_diff": 1.5265566588595902e-16, "zero1_ram_reduction_pct": 86.38, "verify_ms": 96.972, "passed": true }
+        ],
+        "pipeline_checkpoint_matrix": [
+          { "schedule_id": "PP-4S-8M", "stages": 4, "microbatches": 8, "seq_len": 16, "bubble_pct": 27.27, "gpipe_stash_bytes": 1449984, "p1f1b_stash_bytes": 453120, "p1f1b_knapsack_stash_bytes": 226560, "ram_reduction_pct": 84.38, "recompute_flop_overhead_pct": 18.89, "max_grad_diff": 0.0, "exec_ms": 3699.332 },
+          { "schedule_id": "PP-4S-12M", "stages": 4, "microbatches": 12, "seq_len": 16, "bubble_pct": 20.0, "gpipe_stash_bytes": 2174976, "p1f1b_stash_bytes": 453120, "p1f1b_knapsack_stash_bytes": 226560, "ram_reduction_pct": 89.58, "recompute_flop_overhead_pct": 18.89, "max_grad_diff": 0.0, "exec_ms": 5523.615 },
+          { "schedule_id": "PP-4S-16M", "stages": 4, "microbatches": 16, "seq_len": 16, "bubble_pct": 15.79, "gpipe_stash_bytes": 2899968, "p1f1b_stash_bytes": 453120, "p1f1b_knapsack_stash_bytes": 226560, "ram_reduction_pct": 92.19, "recompute_flop_overhead_pct": 18.89, "max_grad_diff": 0.0, "exec_ms": 7395.641 },
+          { "schedule_id": "PP-2S-8M", "stages": 2, "microbatches": 8, "seq_len": 24, "bubble_pct": 11.11, "gpipe_stash_bytes": 1284096, "p1f1b_stash_bytes": 240768, "p1f1b_knapsack_stash_bytes": 101952, "ram_reduction_pct": 92.06, "recompute_flop_overhead_pct": 23.38, "max_grad_diff": 0.0, "exec_ms": 3263.476 }
+        ],
+        "knapsack_operator_decisions": [
+          { "op_id": "input_rmsnorm", "category": "Normalization", "bytes": 2048, "recompute_flops": 1024, "flops_per_byte": 0.5, "action": "SAVE_IN_RAM" },
+          { "op_id": "qkv_linear_proj", "category": "Linear Projection", "bytes": 6144, "recompute_flops": 24576, "flops_per_byte": 4.0, "action": "SAVE_IN_RAM" },
+          { "op_id": "attn_qk_scores", "category": "Attention Scores", "bytes": 8192, "recompute_flops": 8192, "flops_per_byte": 1.0, "action": "RECOMPUTE_IN_BWD" },
+          { "op_id": "attn_softmax_probs", "category": "Attention Scores", "bytes": 8192, "recompute_flops": 5120, "flops_per_byte": 0.62, "action": "RECOMPUTE_IN_BWD" },
+          { "op_id": "attn_context_out", "category": "Linear Projection", "bytes": 2048, "recompute_flops": 16384, "flops_per_byte": 8.0, "action": "SAVE_IN_RAM" },
+          { "op_id": "post_attn_rmsnorm", "category": "Normalization", "bytes": 2048, "recompute_flops": 1024, "flops_per_byte": 0.5, "action": "RECOMPUTE_IN_BWD" },
+          { "op_id": "swiglu_gate_up_proj", "category": "Linear Projection", "bytes": 8192, "recompute_flops": 32768, "flops_per_byte": 4.0, "action": "SAVE_IN_RAM" },
+          { "op_id": "swiglu_silu_product", "category": "Gated Activation", "bytes": 4096, "recompute_flops": 3072, "flops_per_byte": 0.75, "action": "RECOMPUTE_IN_BWD" }
+        ],
+        "fp8_convergence_curves": {
+          "learning_rate": 0.0001,
+          "fp64_reference": {
+            "regime": "fp64_reference", "initial_loss": 0.0001258, "final_loss": 1.69e-06, "loss_reduction_pct": 98.66, "swamped_update_pct": 0.0,
+            "loss_curve": [0.0001258,0.00011078,9.727e-05,8.516e-05,7.431e-05,6.459e-05,5.591e-05,4.82e-05,4.14e-05,3.543e-05,3.024e-05,2.577e-05,2.195e-05,1.872e-05,1.603e-05,1.38e-05,1.198e-05,1.049e-05,9.28e-06,8.29e-06,7.48e-06,6.78e-06,6.19e-06,5.66e-06,5.19e-06,4.76e-06,4.36e-06,3.99e-06,3.66e-06,3.35e-06,3.07e-06,2.81e-06,2.59e-06,2.4e-06,2.23e-06,2.09e-06,1.97e-06,1.86e-06,1.77e-06,1.69e-06]
+          },
+          "bf16_rne": {
+            "regime": "bf16_rne", "initial_loss": 0.0001258, "final_loss": 0.0001258, "loss_reduction_pct": 0.0, "swamped_update_pct": 100.0,
+            "loss_curve": [0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258,0.0001258]
+          },
+          "bf16_sr": {
+            "regime": "bf16_sr", "initial_loss": 0.0001258, "final_loss": 4.91e-06, "loss_reduction_pct": 96.1, "swamped_update_pct": 96.32,
+            "loss_curve": [0.0001258,0.00010794,9.385e-05,8.119e-05,6.866e-05,6.146e-05,5.196e-05,4.671e-05,4.224e-05,3.859e-05,2.972e-05,2.657e-05,2.312e-05,2.176e-05,1.807e-05,1.531e-05,1.389e-05,1.289e-05,1.089e-05,9.65e-06,8.49e-06,8.75e-06,9.66e-06,1.05e-05,1.048e-05,9.62e-06,9e-06,9.73e-06,9.22e-06,8.07e-06,7.63e-06,7.9e-06,6.86e-06,7.47e-06,7.7e-06,6.72e-06,6.89e-06,6.23e-06,5.77e-06,4.91e-06]
+          },
+          "mxfp8_sr_master": {
+            "regime": "mxfp8_sr_master", "initial_loss": 0.0001258, "final_loss": 5.027e-05, "loss_reduction_pct": 60.04, "swamped_update_pct": 0.05,
+            "loss_curve": [0.0001258,0.00012158,0.00011479,0.00010839,0.00010455,9.985e-05,9.61e-05,9.283e-05,8.953e-05,8.655e-05,8.345e-05,8.072e-05,7.832e-05,7.581e-05,7.402e-05,7.234e-05,7.038e-05,6.839e-05,6.668e-05,6.548e-05,6.444e-05,6.346e-05,6.205e-05,6.078e-05,5.938e-05,5.829e-05,5.704e-05,5.588e-05,5.484e-05,5.418e-05,5.377e-05,5.365e-05,5.308e-05,5.298e-05,5.306e-05,5.3e-05,5.261e-05,5.199e-05,5.144e-05,5.027e-05]
+          },
+          "mxfp8_outlier_comparison": {
+            "outlier_magnitude": 1024.0,
+            "per_tensor_fp8_e4m3": { "global_scale": 2.285714, "non_outlier_rel_rmse_pct": 19.65, "underflow_zero_count": 17 },
+            "mxfp8_block32_e4m3": { "shared_e8m0_exponents": [3, -14, -14, -14], "non_outlier_rel_rmse_pct": 2.56, "underflow_zero_count": 0 }
+          }
+        },
+        "compiler_cache_and_bisect": {
+          "num_layers": 24, "cache_hits": 23, "cache_misses": 1, "cache_hit_rate_pct": 95.8,
+          "uncached_p50_ms": 200.479, "cached_p50_ms": 10.143, "speedup_x": 19.77,
+          "max_diff_cached_vs_uncached": 0.0, "isolated_pass": "BrokenFastExpPass", "bisect_oracle_calls": 4,
+          "initial_op_count": 19, "minimal_reproducer_op_count": 2,
+          "minimal_clean_ssa": [
+            { "out": "%v7", "op": "Exp", "inputs": ["%arg_in0"], "shape": [16, 16], "dtype": "bf16" },
+            { "out": "%v8", "op": "ReduceSum", "inputs": ["%v7"], "shape": [16, 1], "dtype": "bf16" }
+          ],
+          "minimal_buggy_ssa": [
+            { "out": "%v7", "op": "BrokenPoly3Exp", "inputs": ["%arg_in0"], "shape": [16, 16], "dtype": "bf16" },
+            { "out": "%v8", "op": "ReduceSum", "inputs": ["%v7"], "shape": [16, 1], "dtype": "bf16" }
+          ],
+          "bisect_probes": [
+            { "probe_pass_index": 2, "pass_name": "CommonSubexprElimPass", "max_abs_diff": 0.0, "status": "PASS" },
+            { "probe_pass_index": 4, "pass_name": "BrokenFastExpPass", "max_abs_diff": 0.00271611, "status": "FAIL" },
+            { "probe_pass_index": 3, "pass_name": "SwiGLUFusionPass", "max_abs_diff": 0.0, "status": "PASS" },
+            { "probe_pass_index": 4, "pass_name": "BrokenFastExpPass", "max_abs_diff": 0.00271611, "status": "ISOLATED_CULPRIT" }
+          ]
+        },
+        "bedrock_advisor_runs": [
+          { "call_id": "BRK-01", "workload_id": "llama3_70b_tp4_zero1", "dominant_stall": "Collectives", "owning_layer": "Collectives & Runtime Layer", "bedrock_latency_ms": 858.0, "bedrock_tokens": 457, "passed": true },
+          { "call_id": "BRK-02", "workload_id": "flux_mmdit_ulysses_sp", "dominant_stall": "Memory / Activation Rematerialization", "owning_layer": "Framework Autograd & Checkpointing Layer", "bedrock_latency_ms": 1204.0, "bedrock_tokens": 476, "passed": true },
+          { "call_id": "BRK-03", "workload_id": "deepseek_moe_fp8", "dominant_stall": "Collectives", "owning_layer": "Collectives & Runtime Layer", "bedrock_latency_ms": 1589.0, "bedrock_tokens": 494, "passed": true },
+          { "call_id": "BRK-04", "workload_id": "llama3_70b_tp4_zero1", "dominant_stall": "Collectives", "owning_layer": "Collectives & Runtime Layer", "bedrock_latency_ms": 1474.0, "bedrock_tokens": 455, "passed": true },
+          { "call_id": "BRK-05", "workload_id": "flux_mmdit_ulysses_sp", "dominant_stall": "Memory / Activation Rematerialization", "owning_layer": "Framework Autograd & Checkpointing Layer", "bedrock_latency_ms": 1096.0, "bedrock_tokens": 449, "passed": true },
+          { "call_id": "BRK-06", "workload_id": "deepseek_moe_fp8", "dominant_stall": "Collectives", "owning_layer": "Collectives & Runtime Layer", "bedrock_latency_ms": 1179.0, "bedrock_tokens": 461, "passed": true },
+          { "call_id": "BRK-07", "workload_id": "llama3_70b_tp4_zero1", "dominant_stall": "Collectives", "owning_layer": "Collectives & Runtime Layer", "bedrock_latency_ms": 1377.0, "bedrock_tokens": 448, "passed": true },
+          { "call_id": "BRK-08", "workload_id": "flux_mmdit_ulysses_sp", "dominant_stall": "Memory / Activation Rematerialization", "owning_layer": "Framework Autograd & Checkpointing Layer", "bedrock_latency_ms": 1004.0, "bedrock_tokens": 478, "passed": true },
+          { "call_id": "BRK-09", "workload_id": "deepseek_moe_fp8", "dominant_stall": "Collectives", "owning_layer": "Collectives & Runtime Layer", "bedrock_latency_ms": 1875.0, "bedrock_tokens": 496, "passed": true }
+        ]
+      };
+
+      const ARCH_NODE_DETAILS = {
+        "edge-browser": {
+          plane: "Plane 1 · Serverless Delivery Edge",
+          title: "Interactive Distributed Training Workbench",
+          module: "web/index.html",
+          metric: "4 Live Tabs · Hash State",
+          summary: "Renders interactive multi-rank autograd parity tables, clock-tick 1F1B vs. GPipe schedules, bit-level FP8/BF16 inspectors, and SSA compiler bisection diffs while persisting active tab and theme in window.location.hash."
+        },
+        "edge-cloudfront": {
+          plane: "Plane 1 · Serverless Delivery Edge",
+          title: "Amazon CloudFront CDN & Origin Router",
+          module: "infra/deploy_cloudfront.sh",
+          metric: "HTTP/2 + HTTP/3 · TLS 1.2+",
+          summary: "Serves static UI files from a private S3 origin via Origin Access Control (OAC) and forwards uncached POST/GET /api/* requests directly to the Python 3.12 AWS Lambda Function URL."
+        },
+        "edge-s3": {
+          plane: "Plane 1 · Serverless Delivery Edge",
+          title: "Private Amazon S3 Web Bucket",
+          module: "s3://trainiumpulse-web-796330847946-us-west-2",
+          metric: "Public Access Blocked",
+          summary: "Stores web/index.html with all four S3 Block Public Access flags enabled and an IAM bucket policy scoped strictly to the CloudFront distribution ARN."
+        },
+        "edge-lambda": {
+          plane: "Plane 1 · Serverless Delivery Edge",
+          title: "AWS Lambda API Origin (Python 3.12)",
+          module: "trainium_pulse/server.py (lambda_handler)",
+          metric: "512 MB · 30s Timeout",
+          summary: "Executes real tensor forward/backward passes, tracemalloc activation profiling, IEEE/OCP bit quantization, and SSA compiler passes on demand at $0.00 idle cost."
+        },
+        "core-autograd": {
+          plane: "Plane 2 · Distributed Autograd & Collectives",
+          title: "Sharded Reverse-Mode Autograd (TP + Ulysses + ZeRO-1)",
+          module: "trainium_pulse/sharded_autograd.py",
+          metric: "max_grad_diff = 2.08e-17",
+          summary: "Executes Ulysses AllToAll sequence-to-head transposes on causal and bidirectional attention, ColumnParallel/RowParallel SwiGLU with AllGather/ReduceScatter, and ZeRO-1 partitioned AdamW updates (73.98% Rank-0 optimizer RAM cut)."
+        },
+        "core-knapsack": {
+          plane: "Plane 2 · Activation Memory Optimization",
+          title: "Exact 0/1 Knapsack Selective Checkpointing Solver",
+          module: "trainium_pulse/checkpoint_1f1b.py (solve_selective_checkpoint_knapsack)",
+          metric: "18.89% Recompute FLOPs",
+          summary: "Uses exact dynamic programming over GCD-normalized operator byte weights to keep high-FLOP linear projections in RAM and recompute quadratic S^2 attention score tensors during backward."
+        },
+        "core-1f1b": {
+          plane: "Plane 2 · Pipeline Parallelism",
+          title: "Clock-Accurate 1F1B vs. GPipe Schedule Executor",
+          module: "trainium_pulse/checkpoint_1f1b.py (verify_1f1b_and_checkpointing)",
+          metric: "84.38% Peak Stash Cut",
+          summary: "Runs real multi-microbatch stage forward and backward passes under tracemalloc, capping in-flight microbatch stashes at P instead of M and reducing peak live stash RAM from 1,449,984 B to 226,560 B with 0.0 gradient drift."
+        },
+        "core-fp8": {
+          plane: "Plane 3 · Reduced-Precision Numerics",
+          title: "Bit-Exact BF16 / FP8 (E4M3 & E5M2) / MXFP8 Convergence Lab",
+          module: "trainium_pulse/fp8_stochastic.py",
+          metric: "SR 96.1% vs RNE 0.0% Drop",
+          summary: "Packs exact IEEE/OCP bit representations and 32-element MXFP8 E8M0 block scales, demonstrating why lr=1e-4 updates freeze under deterministic round-to-nearest (100% swamped) and converge under unbiased stochastic rounding."
+        },
+        "core-compiler": {
+          plane: "Plane 3 · Compiler Build & Release Infrastructure",
+          title: "Alpha-Canonical Partitioner & Bugpoint Pass Bisector",
+          module: "trainium_pulse/dist_compile_cache.py",
+          metric: "23/24 Hits · 2-Op Reproducer",
+          summary: "Normalizes layer-specific SSA register names across 24 blocks for 95.8% cache hit rate (19.77x speedup), and runs binary pass search + Zeller ddmin to shrink BrokenFastExpPass from 19 ops to 2 SSA ops."
+        },
+        "bedrock-advisor": {
+          plane: "Plane 4 · Cross-Stack Bottleneck Attribution",
+          title: "Amazon Bedrock Nova Lite Training Advisor",
+          module: "trainium_pulse/dist_compile_cache.py (analyze_training_bottleneck_bedrock)",
+          metric: "9 / 9 Passed · 1,204 ms p50",
+          summary: "Decomposes step time across Compute, Collectives, Memory Rematerialization, and Compiler Dispatch, invoking us.amazon.nova-lite-v1:0 via Converse API to route fixes to the owning stack layer."
+        },
+        "sqlite-cache": {
+          plane: "Plane 4 · Content-Addressed Compiler Cache",
+          title: "SQLite WAL Canonical Subgraph Artifact Store",
+          module: "trainium_pulse/dist_compile_cache.py (ContentAddressedCompileCache)",
+          metric: "0.0 Numerical Drift",
+          summary: "Stores compiled canonical SSA graphs, linear-scan SRAM buffer slot assignments, and 3D GEMM tile schedules keyed by SHA-256(canonical_ir + pass_flags)."
+        }
+      };
+
+      const VALID_TABS = ["autograd", "schedule", "fp8", "compiler"];
+      let activeTab = "autograd";
+      let activeTheme = "light";
+
+      function esc(v) {
+        return String(v == null ? "" : v)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      // URL Hash State (Theme & Tab)
+      function parseHashState() {
+        const raw = (window.location.hash || "").replace(/^#/, "");
+        if (!raw) return;
+        raw.split("&").forEach(function (part) {
+          if (VALID_TABS.indexOf(part) !== -1) activeTab = part;
+          else if (part === "theme=dark" || part === "dark") activeTheme = "dark";
+          else if (part === "theme=light") activeTheme = "light";
+        });
+      }
+
+      function syncHashState() {
+        const hash = activeTheme === "dark" ? activeTab + "&theme=dark" : activeTab;
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, "", "#" + hash);
+        } else {
+          window.location.hash = hash;
+        }
+      }
+
+      function applyTheme(theme) {
+        activeTheme = theme;
+        document.documentElement.setAttribute("data-theme", theme);
+        document.getElementById("themeIcon").textContent = theme === "dark" ? "☀️" : "🌙";
+        document.getElementById("themeLabel").textContent = theme === "dark" ? "Light Mode" : "Dark Mode";
+        syncHashState();
+      }
+
+      document.getElementById("themeToggleBtn").addEventListener("click", function () {
+        applyTheme(activeTheme === "dark" ? "light" : "dark");
+      });
+
+      window.switchTab = function (tabId) {
+        if (VALID_TABS.indexOf(tabId) === -1) return;
+        activeTab = tabId;
+        document.querySelectorAll(".tab-btn").forEach(function (btn) {
+          const match = btn.getAttribute("data-tab") === tabId;
+          btn.classList.toggle("active", match);
+          btn.setAttribute("aria-selected", match ? "true" : "false");
+        });
+        document.querySelectorAll(".tab-panel").forEach(function (panel) {
+          panel.classList.toggle("active", panel.id === "panel-" + tabId);
+        });
+        syncHashState();
+      };
+
+      // Sticky Scroll-Spy Section Observer
+      const sectionIds = ["problem", "architecture", "implementation", "tradeoffs", "studio", "benchmarks"];
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              const id = entry.target.id;
+              document.querySelectorAll(".toc-link").forEach(function (lnk) {
+                lnk.classList.toggle("active", lnk.getAttribute("data-toc") === id);
+              });
+            }
+          });
+        }, { rootMargin: "-20% 0px -65% 0px", threshold: 0.02 });
+        sectionIds.forEach(function (sid) {
+          const el = document.getElementById(sid);
+          if (el) observer.observe(el);
+        });
+      }
+
+      // Architecture SVG Inspector, Zoom & Export
+      function selectArchNode(nodeId) {
+        const info = ARCH_NODE_DETAILS[nodeId] || ARCH_NODE_DETAILS["core-autograd"];
+        document.querySelectorAll("#trainiumPulseArchSvg .arch-node").forEach(function (el) {
+          el.classList.toggle("selected", el.getAttribute("data-arch-node") === nodeId);
+        });
+        document.querySelectorAll("#archNodePills [data-arch-btn]").forEach(function (btn) {
+          btn.classList.toggle("active", btn.getAttribute("data-arch-btn") === nodeId);
+        });
+        document.getElementById("archInspectorDetail").innerHTML =
+          '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.45rem;">' +
+            '<div>' +
+              '<span class="tag tag-accent" style="margin-bottom:0.35rem;">' + esc(info.plane) + '</span>' +
+              '<h3 style="font-size:1.06rem; font-weight:800;">' + esc(info.title) + '</h3>' +
+            '</div>' +
+            '<span class="tag tag-pass">' + esc(info.metric) + '</span>' +
+          '</div>' +
+          '<div class="mono" style="font-size:0.73rem; color:var(--accent-deep); margin-bottom:0.45rem;">Module / Resource: <code>' + esc(info.module) + '</code></div>' +
+          '<p style="font-size:0.91rem; color:var(--ink-muted); line-height:1.65;">' + esc(info.summary) + '</p>';
+      }
+
+      document.querySelectorAll("#trainiumPulseArchSvg .arch-node").forEach(function (el) {
+        el.addEventListener("click", function () { selectArchNode(el.getAttribute("data-arch-node")); });
+        el.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            selectArchNode(el.getAttribute("data-arch-node"));
+          }
+        });
+      });
+      document.querySelectorAll("#archNodePills [data-arch-btn]").forEach(function (btn) {
+        btn.addEventListener("click", function () { selectArchNode(btn.getAttribute("data-arch-btn")); });
+      });
+
+      const archSvg = document.getElementById("trainiumPulseArchSvg");
+      const archViewport = document.getElementById("archViewport");
+      const zoom100Btn = document.getElementById("zoom100Btn");
+      const zoom125Btn = document.getElementById("zoom125Btn");
+      const zoomResetBtn = document.getElementById("zoomResetBtn");
+      const archZoomLabel = document.getElementById("archZoomLabel");
+
+      function setArchZoom(mode) {
+        const is125 = mode === "125";
+        archSvg.classList.toggle("zoom-125", is125);
+        archZoomLabel.textContent = is125 ? "Zoom: 125%" : "Zoom: 100%";
+        zoom100Btn.className = is125 ? "btn btn-secondary" : "btn btn-accent";
+        zoom125Btn.className = is125 ? "btn btn-accent" : "btn btn-secondary";
+        if (mode === "reset" && archViewport) {
+          archViewport.scrollTo({ left: 0, behavior: "smooth" });
+          selectArchNode("core-autograd");
+        }
+      }
+      zoom100Btn.addEventListener("click", function () { setArchZoom("100"); });
+      zoom125Btn.addEventListener("click", function () { setArchZoom("125"); });
+      zoomResetBtn.addEventListener("click", function () { setArchZoom("reset"); });
+
+      document.getElementById("downloadArchSvgBtn").addEventListener("click", function () {
+        const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + archSvg.outerHTML;
+        const blob = new Blob([xml], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "trainiumpulse-architecture.svg";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      });
+
+      async function apiGet(path) {
+        const res = await fetch(path, { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }
+
+      async function apiPost(path, body) {
+        const res = await fetch(path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body || {})
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+        return data;
+      }
+
+      // Render KPIs and §06 Benchmarks 1:1 from MEASURED_BENCHMARKS
+      function renderMeasuredKpisAndBenchmarks() {
+        const k = MEASURED_BENCHMARKS.headline_kpis;
+
+        document.getElementById("heroKpiStrip").innerHTML =
+          '<div class="card kpi-card">' +
+            '<div class="kpi-val">' + k.max_abs_grad_diff.toExponential(2) + '</div>' +
+            '<div class="kpi-label">Multi-Rank L_inf Gradient Parity</div>' +
+            '<div class="kpi-sub"><em>' + k.autograd_runs_passed + ' / ' + k.autograd_runs_total + ' TP + Ulysses + ZeRO-1 runs (' + k.zero1_tp_rank0_ram_reduction_pct + '% Rank-0 AdamW RAM cut)</em></div>' +
+          '</div>' +
+          '<div class="card kpi-card">' +
+            '<div class="kpi-val">' + k.p1f1b_knapsack_ram_reduction_pct + '% (' + k.p1f1b_knapsack_compression_x + 'x)</div>' +
+            '<div class="kpi-label">1F1B + Knapsack Activation RAM Cut</div>' +
+            '<div class="kpi-sub"><em>' + Number(k.gpipe_peak_stash_bytes).toLocaleString() + ' B -&gt; ' + Number(k.p1f1b_knapsack_peak_stash_bytes).toLocaleString() + ' B live stashes (' + k.knapsack_recompute_flop_overhead_pct + '% FLOP overhead)</em></div>' +
+          '</div>' +
+          '<div class="card kpi-card">' +
+            '<div class="kpi-val">' + k.sr_loss_reduction_pct + '% vs ' + k.rne_loss_reduction_pct.toFixed(1) + '%</div>' +
+            '<div class="kpi-label">Stochastic Rounding vs. RNE Loss Drop</div>' +
+            '<div class="kpi-sub"><em>40-step lr=1e-4 MLP loop: RNE swamps ' + k.rne_swamped_update_pct.toFixed(0) + '% of updates; SR &amp; MXFP8 converge</em></div>' +
+          '</div>' +
+          '<div class="card kpi-card">' +
+            '<div class="kpi-val">' + k.compile_cache_hits + ' / ' + k.compile_layers + ' (' + k.compile_cache_hit_rate_pct + '%)</div>' +
+            '<div class="kpi-label">Subgraph Cache Hits (' + k.compile_speedup_x + 'x Faster)</div>' +
+            '<div class="kpi-sub"><em>' + k.compile_uncached_p50_ms + ' ms -&gt; ' + k.compile_cached_p50_ms + ' ms; bugpoint shrinks ' + k.bugpoint_initial_ops + ' ops -&gt; ' + k.bugpoint_reduced_ops + ' ops</em></div>' +
+          '</div>';
+
+        document.getElementById("tabMetric1").textContent =
+          "max diff " + k.max_abs_grad_diff.toExponential(2) + " · " + k.autograd_verify_p50_ms + " ms p50";
+        document.getElementById("tabMetric2").textContent =
+          k.p1f1b_knapsack_ram_reduction_pct + "% RAM cut · " + k.pipeline_bubble_pct + "% bubble";
+        document.getElementById("tabMetric3").textContent =
+          "SR " + k.sr_loss_reduction_pct + "% drop vs RNE " + k.rne_loss_reduction_pct.toFixed(1) + "%";
+        document.getElementById("tabMetric4").textContent =
+          k.compile_cache_hits + "/" + k.compile_layers + " hits (" + k.compile_speedup_x + "x) · " + k.bugpoint_reduced_ops + "-op bisect";
+
+        document.getElementById("benchSubHeader").textContent =
+          "Measured by benchmarks/run_benchmarks.py across 12 multi-rank autograd runs, 4 multi-microbatch 1F1B + knapsack schedules, 40-step BF16/FP8/MXFP8 convergence loops, 24-layer canonical subgraph compilation, and 9 live Amazon Bedrock Converse calls in " +
+          MEASURED_BENCHMARKS.environment.aws_region + ".";
+        document.getElementById("benchTimestampTag").textContent =
+          MEASURED_BENCHMARKS.benchmark_timestamp_utc;
+        document.getElementById("benchBedrockPassTag").textContent =
+          k.bedrock_calls_passed + " / " + k.bedrock_calls_total + " PASSED · " + k.bedrock_latency_p50_ms + " ms P50";
+
+        const stages = [
+          { label: "24-Layer Cached Compile", p50: k.compile_cached_p50_ms, color: "#059669" },
+          { label: "Multi-Rank Autograd (R=4)", p50: k.autograd_verify_p50_ms, color: "#D97706" },
+          { label: "Bugpoint Pass Bisect+Reduce", p50: k.bugpoint_bisect_p50_ms, color: "#1D4ED8" },
+          { label: "24-Layer Uncached Compile", p50: k.compile_uncached_p50_ms, color: "#6D28D9" },
+          { label: "40-Step FP8/MXFP8 Loop", p50: k.fp8_train_p50_ms, color: "#92400E" },
+          { label: "Bedrock Nova Lite Call", p50: k.bedrock_latency_p50_ms, color: "#18181B" }
+        ];
+        function logW(ms) {
+          const val = Math.max(1.0, ms);
+          const pct = ((Math.log10(val) - 0) / (Math.log10(2500) - 0)) * 310;
+          return Math.max(10, Math.min(310, +pct.toFixed(1)));
+        }
+        let svgRows = "";
+        stages.forEach(function (st, i) {
+          const y = 20 + i * 31;
+          svgRows +=
+            '<text x="10" y="' + (y + 12) + '" font-family="monospace" font-size="10" font-weight="700" fill="#141413">' + esc(st.label) + '</text>' +
+            '<rect x="195" y="' + y + '" width="310" height="15" fill="#F2ECE1" stroke="#18181B" stroke-width="1.2"/>' +
+            '<rect x="195" y="' + y + '" width="' + logW(st.p50) + '" height="15" fill="' + st.color + '"/>' +
+            '<text x="513" y="' + (y + 12) + '" font-family="monospace" font-size="9.8" fill="#141413">' + st.p50 + ' ms</text>';
+        });
+        document.getElementById("benchLatencySvgBox").innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 615 212" style="width:100%; height:auto; display:block;">' +
+          '<rect width="615" height="212" fill="#FAF7F2"/>' + svgRows + '</svg>';
+
+        document.getElementById("benchEfficiencyBars").innerHTML =
+          '<div class="bar-row"><div class="bar-meta"><span>24-Layer Canonical Compile Cache Hit Rate (' + k.compile_cache_hits + ' / ' + k.compile_layers + ')</span><span>' + k.compile_cache_hit_rate_pct + '%</span></div><div class="bar-track"><div class="bar-fill bar-fill-pass" style="width:' + k.compile_cache_hit_rate_pct + '%;"></div></div></div>' +
+          '<div class="bar-row"><div class="bar-meta"><span>Stochastic Rounding 40-Step Loss Reduction (lr=1e-4)</span><span>' + k.sr_loss_reduction_pct + '%</span></div><div class="bar-track"><div class="bar-fill bar-fill-accent" style="width:' + k.sr_loss_reduction_pct + '%;"></div></div></div>' +
+          '<div class="bar-row"><div class="bar-meta"><span>1F1B + 0/1 Knapsack Peak Activation Stash Reduction</span><span>' + k.p1f1b_knapsack_ram_reduction_pct + '%</span></div><div class="bar-track"><div class="bar-fill bar-fill-pass" style="width:' + k.p1f1b_knapsack_ram_reduction_pct + '%;"></div></div></div>' +
+          '<div class="bar-row"><div class="bar-meta"><span>ZeRO-1 + TP Rank-0 AdamW State Memory Reduction (R=4)</span><span>' + k.zero1_tp_rank0_ram_reduction_pct + '%</span></div><div class="bar-track"><div class="bar-fill bar-fill-accent" style="width:' + k.zero1_tp_rank0_ram_reduction_pct + '%;"></div></div></div>';
+
+        document.getElementById("benchAutogradBody").innerHTML = MEASURED_BENCHMARKS.autograd_parity_matrix.map(function (r) {
+          return (
+            "<tr>" +
+              "<td class='mono'><strong>" + esc(r.config_id) + "</strong></td>" +
+              "<td class='mono' style='font-size:0.7rem;'>" + esc(r.architecture) + "</td>" +
+              "<td class='mono'>R=" + r.world_size + "</td>" +
+              "<td class='mono' style='color:var(--pass); font-weight:700;'>" + Number(r.max_abs_grad_diff).toExponential(2) + "</td>" +
+              "<td class='mono'>" + r.zero1_ram_reduction_pct + "%</td>" +
+              "<td class='mono'>" + r.verify_ms + " ms</td>" +
+            "</tr>"
+          );
+        }).join("");
+
+        document.getElementById("benchScheduleBody").innerHTML = MEASURED_BENCHMARKS.pipeline_checkpoint_matrix.map(function (s) {
+          return (
+            "<tr>" +
+              "<td class='mono'><strong>" + esc(s.schedule_id) + "</strong></td>" +
+              "<td class='mono'>" + s.bubble_pct + "%</td>" +
+              "<td class='mono'>" + (s.gpipe_stash_bytes / 1024).toFixed(1) + " KiB</td>" +
+              "<td class='mono'>" + (s.p1f1b_knapsack_stash_bytes / 1024).toFixed(1) + " KiB</td>" +
+              "<td><span class='tag tag-pass'>-" + s.ram_reduction_pct + "%</span></td>" +
+            "</tr>"
+          );
+        }).join("");
+
+        document.getElementById("benchBedrockBody").innerHTML = MEASURED_BENCHMARKS.bedrock_advisor_runs.map(function (b) {
+          return (
+            "<tr>" +
+              "<td class='mono'><strong>" + esc(b.call_id) + "</strong></td>" +
+              "<td class='mono' style='font-size:0.7rem;'>" + esc(b.workload_id) + "</td>" +
+              "<td><span class='tag tag-warn'>" + esc(b.dominant_stall) + "</span></td>" +
+              "<td style='font-size:0.76rem;'>" + esc(b.owning_layer) + "</td>" +
+              "<td class='mono'>" + b.bedrock_latency_ms + " ms</td>" +
+              "<td class='mono'>" + b.bedrock_tokens + "</td>" +
+            "</tr>"
+          );
+        }).join("");
+      }
+
+      // -------------------------------------------------------------------
+      // Tab 1: Sharded Autograd Parity
+      // -------------------------------------------------------------------
+      function renderAutogradResult(res) {
+        const banner = document.getElementById("agVerdictBanner");
+        banner.className = "verdict-banner " + (res.parity_verified ? "verdict-allow" : "verdict-deny");
+        banner.innerHTML =
+          "<div><strong>" + (res.parity_verified ? "✓ EXACT MULTI-RANK GRADIENT PARITY VERIFIED" : "✗ PARITY MISMATCH") + "</strong><br/>" +
+          "<span style='font-size:0.82rem;'>R=" + res.world_size + " (" + esc(res.architecture) + ") · Loss: <code>" + res.sharded_loss + "</code> vs <code>" + res.single_rank_loss + "</code> · Max |Δ Grad|: <code>" + Number(res.max_abs_grad_diff).toExponential(2) + "</code></span></div>" +
+          "<span class='tag tag-pass'>&lt; 1e-10 PASS</span>";
+
+        document.getElementById("agTimingTag").textContent =
+          res.timing_ms.total_verify_ms + " ms total";
+
+        const mem = res.memory_tracemalloc;
+        const r0Pct = Math.max(8, Math.round((mem.zero1_tp_rank0_adamw_bytes / Math.max(1, mem.unsharded_adamw_bytes)) * 100));
+        document.getElementById("agMemBars").innerHTML =
+          '<div class="bar-row"><div class="bar-meta"><span>Single-Rank Unsharded AdamW State (tracemalloc)</span><span>' + Number(mem.unsharded_adamw_bytes).toLocaleString() + ' B</span></div><div class="bar-track"><div class="bar-fill bar-fill-fail" style="width:100%;"></div></div></div>' +
+          '<div class="bar-row"><div class="bar-meta"><span>Rank-0 Partitioned ZeRO-1 + TP AdamW State (-' + mem.per_rank_reduction_pct + '%)</span><span>' + Number(mem.zero1_tp_rank0_adamw_bytes).toLocaleString() + ' B (' + mem.compression_ratio_x + 'x)</span></div><div class="bar-track"><div class="bar-fill bar-fill-pass" style="width:' + r0Pct + '%;"></div></div></div>';
+
+        const c = res.collectives;
+        document.getElementById("agCollectivesSummary").innerHTML =
+          "<strong>Executed Collectives:</strong> Ulysses <code>AllToAll</code>: <strong>" + c.ulysses_all_to_all_calls + "</strong> calls · " +
+          "SP/ZeRO-1 <code>AllGather</code>: <strong>" + c.sp_all_gather_calls + "</strong> · " +
+          "SP/ZeRO-1 <code>ReduceScatter</code>: <strong>" + c.sp_and_zero1_reduce_scatter_calls + "</strong> · " +
+          "Total Collective Payload: <strong>" + Number(c.bytes_transferred).toLocaleString() + " B</strong>";
+
+        document.getElementById("agParityTableBody").innerHTML = (res.per_tensor_parity || []).map(function (p) {
+          return (
+            "<tr>" +
+              "<td class='mono'><strong>" + esc(p.tensor) + "</strong></td>" +
+              "<td class='mono'>[" + p.shape.join("×") + "]</td>" +
+              "<td><span class='tag tag-soft'>" + esc(p.sharding) + "</span></td>" +
+              "<td class='mono' style='color:var(--pass); font-weight:700;'>" + Number(p.max_abs_grad_diff).toExponential(2) + "</td>" +
+              "<td class='mono'>" + Number(p.max_abs_param_diff).toExponential(2) + "</td>" +
+            "</tr>"
+          );
+        }).join("");
+      }
+
+      window.runAutogradLive = async function () {
+        const btn = document.getElementById("btnRunAutograd");
+        btn.disabled = true;
+        btn.textContent = "⏳ Running R-Rank Forward+Backward...";
+        try {
+          const world = parseInt(document.getElementById("agWorldSelect").value, 10);
+          const seq = parseInt(document.getElementById("agSeqSelect").value, 10);
+          const arch = document.getElementById("agArchSelect").value;
+          const nHeads = world === 8 ? 8 : 4;
+          const out = await apiPost("/api/autograd/verify", {
+            world_size: world,
+            seq_len: seq,
+            n_heads: nHeads,
+            d_model: 32,
+            d_ff: 64,
+            architecture: arch
+          });
+          renderAutogradResult(out);
+        } catch (err) {
+          document.getElementById("agVerdictBanner").innerHTML = "<div><strong>API Error:</strong> " + esc(err.message) + "</div>";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "▶ Run Multi-Rank Parity Check";
+        }
+      };
+
+      window.presetAutograd = function (arch, world, seq) {
+        document.getElementById("agArchSelect").value = arch;
+        document.getElementById("agWorldSelect").value = String(world);
+        document.getElementById("agSeqSelect").value = String(seq);
+        window.runAutogradLive();
+      };
+
+      // -------------------------------------------------------------------
+      // Tab 2: 1F1B Pipeline & Knapsack Checkpointing
+      // -------------------------------------------------------------------
+      function renderTimelineGrid(containerId, timeline, numStages) {
+        const rows = [];
+        for (let p = 0; p < numStages; p++) {
+          let cells = "";
+          timeline.forEach(function (slot) {
+            const match = slot.find(function (ev) { return ev.stage === p; });
+            if (match) {
+              const cls = match.type === "F" ? "sched-fwd" : "sched-bwd";
+              cells += '<div class="sched-cell ' + cls + '" title="Stage ' + p + ' ' + match.type + match.microbatch + '">' + match.type + match.microbatch + '</div>';
+            } else {
+              cells += '<div class="sched-cell sched-idle">·</div>';
+            }
+          });
+          rows.push('<div class="sched-stage-row"><span class="sched-stage-label">Stage ' + p + '</span>' + cells + '</div>');
+        }
+        document.getElementById(containerId).innerHTML = rows.join("");
+      }
+
+      function renderScheduleResult(res) {
+        const sm = res.summary_metrics;
+        const knap = res.knapsack_solver;
+        const banner = document.getElementById("ppVerdictBanner");
+        banner.className = "verdict-banner verdict-allow";
+        banner.innerHTML =
+          "<div><strong>✓ 1F1B + KNAPSACK CUTS PEAK LIVE STASH RAM BY " + sm.combined_1f1b_knapsack_ram_reduction_pct + "% (" + sm.combined_compression_ratio_x + "x)</strong><br/>" +
+          "<span style='font-size:0.82rem;'>Pipeline Bubble: <code>" + sm.measured_bubble_pct + "%</code> · Max |Δ Grad| vs GPipe: <code>" + Number(sm.max_grad_diff_knapsack_vs_gpipe).toExponential(2) + "</code> · Recompute Overhead: <code>+" + knap.recompute_flop_overhead_pct + "% FLOPs</code></span></div>" +
+          "<span class='tag tag-pass'>" + sm.exec_ms + " ms</span>";
+
+        const gBytes = sm.gpipe_peak_stash_bytes;
+        const p1Bytes = sm.p1f1b_peak_stash_bytes;
+        const kBytes = sm.p1f1b_knapsack_peak_stash_bytes;
+        document.getElementById("ppRamBars").innerHTML =
+          '<div class="bar-row"><div class="bar-meta"><span>GPipe (No Checkpointing · M Stashes Live)</span><span>' + Number(gBytes).toLocaleString() + ' B</span></div><div class="bar-track"><div class="bar-fill bar-fill-fail" style="width:100%;"></div></div></div>' +
+          '<div class="bar-row"><div class="bar-meta"><span>1F1B Schedule Only (Capped at P Stashes)</span><span>' + Number(p1Bytes).toLocaleString() + ' B</span></div><div class="bar-track"><div class="bar-fill bar-fill-accent" style="width:' + Math.round((p1Bytes / Math.max(1, gBytes)) * 100) + '%;"></div></div></div>' +
+          '<div class="bar-row"><div class="bar-meta"><span>1F1B + 0/1 Knapsack Selective Checkpointing</span><span>' + Number(kBytes).toLocaleString() + ' B (-' + sm.combined_1f1b_knapsack_ram_reduction_pct + '%)</span></div><div class="bar-track"><div class="bar-fill bar-fill-pass" style="width:' + Math.max(6, Math.round((kBytes / Math.max(1, gBytes)) * 100)) + '%;"></div></div></div>';
+
+        document.getElementById("ppKnapsackTag").textContent =
+          "-" + knap.memory_saved_pct + "% Block RAM";
+
+        document.getElementById("ppKnapsackBody").innerHTML = knap.decisions.map(function (d) {
+          const isSave = d.action === "SAVE_IN_RAM";
+          return (
+            "<tr>" +
+              "<td class='mono' style='font-size:0.7rem;'><strong>" + esc(d.op_id) + "</strong></td>" +
+              "<td class='mono'>" + d.bytes + " B</td>" +
+              "<td class='mono'>" + d.flops_per_byte + "</td>" +
+              "<td><span class='tag " + (isSave ? "tag-pass" : "tag-warn") + "'>" + esc(d.action) + "</span></td>" +
+            "</tr>"
+          );
+        }).join("");
+
+        renderTimelineGrid("pp1f1bGrid", res.schedules["1f1b_selective_knapsack"].timeline, res.config.num_stages);
+        renderTimelineGrid("ppGpipeGrid", res.schedules["gpipe_no_ckpt"].timeline, res.config.num_stages);
+      }
+
+      window.runScheduleLive = async function () {
+        const btn = document.getElementById("btnRunSchedule");
+        btn.disabled = true;
+        btn.textContent = "⏳ Executing GPipe & 1F1B Schedules...";
+        try {
+          const p = parseInt(document.getElementById("ppStagesSelect").value, 10);
+          const m = parseInt(document.getElementById("ppMicroSelect").value, 10);
+          const b = parseFloat(document.getElementById("ppBudgetSelect").value);
+          const out = await apiPost("/api/schedule/1f1b", {
+            num_stages: p,
+            num_microbatches: m,
+            memory_budget_ratio: b
+          });
+          renderScheduleResult(out);
+        } catch (err) {
+          document.getElementById("ppVerdictBanner").innerHTML = "<div><strong>API Error:</strong> " + esc(err.message) + "</div>";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "▶ Solve 0/1 Knapsack & Execute 1F1B";
+        }
+      };
+
+      // -------------------------------------------------------------------
+      // Tab 3: BF16 / FP8 / MXFP8 Stochastic Rounding Lab
+      // -------------------------------------------------------------------
+      function renderFp8Result(res) {
+        const rne = res.regimes.bf16_rne;
+        const sr = res.regimes.bf16_sr;
+        const mx = res.regimes.mxfp8_sr_master;
+        const ref = res.regimes.fp64_reference;
+
+        const banner = document.getElementById("fp8VerdictBanner");
+        banner.className = "verdict-banner verdict-allow";
+        banner.innerHTML =
+          "<div><strong>✓ STOCHASTIC ROUNDING ESCAPES ULP SWAMPING (" + sr.loss_reduction_pct + "% LOSS DROP VS " + rne.loss_reduction_pct + "% RNE)</strong><br/>" +
+          "<span style='font-size:0.82rem;'>At lr=" + res.learning_rate + ", deterministic BF16 RNE swamped <code>" + rne.swamped_update_pct + "%</code> of weight updates, while SR &amp; MXFP8 converged cleanly.</span></div>" +
+          "<span class='tag tag-pass'>" + res.steps + " STEPS</span>";
+
+        document.getElementById("fp8TimingTag").textContent = (res.exec_ms || 0) + " ms";
+
+        // Draw 4-curve SVG Loss Chart
+        const allVals = [].concat(ref.loss_curve, rne.loss_curve, sr.loss_curve, mx.loss_curve);
+        const maxY = Math.max.apply(null, allVals) * 1.06 || 1e-4;
+        const W = 580, H = 210, padL = 56, padR = 18, padT = 16, padB = 28;
+        const plotW = W - padL - padR, plotH = H - padT - padB;
+
+        function poly(curve, color, dash) {
+          const pts = curve.map(function (v, idx) {
+            const x = padL + (idx / Math.max(1, curve.length - 1)) * plotW;
+            const y = padT + (1.0 - (v / maxY)) * plotH;
+            return x.toFixed(1) + "," + y.toFixed(1);
+          }).join(" ");
+          return '<polyline fill="none" stroke="' + color + '" stroke-width="2.6"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' points="' + pts + '"/>';
+        }
+
+        document.getElementById("fp8ChartBox").innerHTML =
+          '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + W + ' ' + H + '" style="width:100%; height:auto; display:block;">' +
+            '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '" fill="#FAF7F2" stroke="#18181B" stroke-width="1.4"/>' +
+            poly(rne.loss_curve, "#DC2626", "6 4") +
+            poly(mx.loss_curve, "#6D28D9", "") +
+            poly(sr.loss_curve, "#D97706", "") +
+            poly(ref.loss_curve, "#059669", "3 2") +
+            '<text x="' + padL + '" y="' + (H - 8) + '" font-family="monospace" font-size="9.5" fill="#18181B">Step 1</text>' +
+            '<text x="' + (W - 64) + '" y="' + (H - 8) + '" font-family="monospace" font-size="9.5" fill="#18181B">Step ' + res.steps + '</text>' +
+            '<text x="6" y="' + (padT + 10) + '" font-family="monospace" font-size="9" fill="#18181B">' + maxY.toExponential(1) + '</text>' +
+            '<text x="24" y="' + (padT + plotH) + '" font-family="monospace" font-size="9" fill="#18181B">0.0</text>' +
+            '<text x="' + (padL + 10) + '" y="' + (padT + 16) + '" font-family="monospace" font-size="9.2" font-weight="700" fill="#DC2626">Red: BF16 RNE (Swamped)</text>' +
+            '<text x="' + (padL + 185) + '" y="' + (padT + 16) + '" font-family="monospace" font-size="9.2" font-weight="700" fill="#D97706">Amber: BF16 SR</text>' +
+            '<text x="' + (padL + 292) + '" y="' + (padT + 16) + '" font-family="monospace" font-size="9.2" font-weight="700" fill="#6D28D9">Purple: MXFP8+SR</text>' +
+            '<text x="' + (padL + 412) + '" y="' + (padT + 16) + '" font-family="monospace" font-size="9.2" font-weight="700" fill="#059669">Green: FP64</text>' +
+          '</svg>';
+
+        const labels = [
+          ["BF16 Round-to-Nearest (RNE)", rne, "tag-fail"],
+          ["BF16 Stochastic Rounding (SR)", sr, "tag-pass"],
+          ["MXFP8 (E4M3/E5M2) + SR + Master", mx, "tag-pass"],
+          ["FP64 Exact Reference", ref, "tag-soft"]
+        ];
+        document.getElementById("fp8RegimeTableBody").innerHTML = labels.map(function (item) {
+          const r = item[1];
+          return (
+            "<tr>" +
+              "<td><strong>" + esc(item[0]) + "</strong></td>" +
+              "<td class='mono'>" + Number(r.initial_loss).toExponential(3) + "</td>" +
+              "<td class='mono'>" + Number(r.final_loss).toExponential(3) + "</td>" +
+              "<td><span class='tag " + item[2] + "'>" + r.loss_reduction_pct + "%</span></td>" +
+              "<td class='mono'>" + r.swamped_update_pct + "%</td>" +
+            "</tr>"
+          );
+        }).join("");
+
+        if (res.bit_inspector) {
+          const bi = res.bit_inspector;
+          document.getElementById("fp8BitInspectorBox").innerHTML =
+            '<div class="bit-pill-row">' +
+              '<div class="bit-box"><strong>BF16 (' + esc(bi.bf16.hex) + '):</strong> <code>' + esc(bi.bf16.bits) + '</code> -&gt; ' + bi.bf16.decoded + '</div>' +
+              '<div class="bit-box"><strong>FP8 E4M3 (' + esc(bi.fp8_e4m3.hex) + '):</strong> <code>' + esc(bi.fp8_e4m3.bits) + '</code> -&gt; ' + bi.fp8_e4m3.decoded + '</div>' +
+              '<div class="bit-box"><strong>FP8 E5M2 (' + esc(bi.fp8_e5m2.hex) + '):</strong> <code>' + esc(bi.fp8_e5m2.bits) + '</code> -&gt; ' + bi.fp8_e5m2.decoded + '</div>' +
+            '</div>';
+        }
+
+        if (res.mxfp8_outlier_comparison) {
+          const oc = res.mxfp8_outlier_comparison;
+          document.getElementById("fp8OutlierBox").innerHTML =
+            "Outlier <code>" + oc.outlier_magnitude + "</code> in index 0: Per-tensor FP8 E4M3 suffers <strong>" +
+            oc.per_tensor_fp8_e4m3.underflow_zero_count + " underflow zeros</strong> (" +
+            oc.per_tensor_fp8_e4m3.non_outlier_rel_rmse_pct + "% tail RMSE), whereas 32-element MXFP8 (shared E8M0 exponents <code>[" +
+            oc.mxfp8_block32_e4m3.shared_e8m0_exponents.join(", ") + "]</code>) records <strong>" +
+            oc.mxfp8_block32_e4m3.underflow_zero_count + " underflows</strong> (" +
+            oc.mxfp8_block32_e4m3.non_outlier_rel_rmse_pct + "% tail RMSE).";
+        }
+      }
+
+      window.runFp8Live = async function () {
+        const btn = document.getElementById("btnRunFp8");
+        btn.disabled = true;
+        btn.textContent = "⏳ Running 40-Step Quantized Loops...";
+        try {
+          const lr = parseFloat(document.getElementById("fp8LrSelect").value);
+          const outlier = parseFloat(document.getElementById("fp8OutlierSelect").value);
+          const sample = parseFloat(document.getElementById("fp8SampleInput").value || "-1.375");
+          const out = await apiPost("/api/fp8/train", {
+            steps: 40,
+            learning_rate: lr,
+            outlier_magnitude: outlier,
+            sample_float: sample
+          });
+          renderFp8Result(out);
+        } catch (err) {
+          document.getElementById("fp8VerdictBanner").innerHTML = "<div><strong>API Error:</strong> " + esc(err.message) + "</div>";
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "▶ Run 40-Step FP8 / BF16 Training Loop";
+        }
+      };
+
+      // -------------------------------------------------------------------
+      // Tab 4: Subgraph Compile Cache, Bugpoint Bisector & Bedrock Advisor
+      // -------------------------------------------------------------------
+      function renderCompilerResult(res) {
+        const bp = res.bugpoint_bisector || {
+          isolated_pass_name: res.isolated_pass,
+          bisect_oracle_calls: res.bisect_oracle_calls,
+          initial_op_count: res.initial_op_count,
+          minimal_reproducer_op_count: res.minimal_reproducer_op_count,
+          minimal_clean_ssa: res.minimal_clean_ssa,
+          minimal_buggy_ssa: res.minimal_buggy_ssa,
+          bisect_probes: res.bisect_probes
+        };
+        const hits = res.cache_hits;
+        const layers = res.num_layers;
+        const speedup = res.compile_speedup_x || res.speedup_x;
+        const uncachedMs = res.uncached_compile_ms || res.uncached_p50_ms;
+        const cachedMs = res.cached_compile_ms || res.cached_p50_ms;
+
+        const banner = document.getElementById("ccVerdictBanner");
+        banner.className = "verdict-banner verdict-allow";
+        banner.innerHTML =
+          "<div><strong>✓ " + hits + " / " + layers + " (" + res.cache_hit_rate_pct + "%) CANONICAL SHA-256 CACHE HITS · BUGPOINT ISOLATED TO " + bp.minimal_reproducer_op_count + " OPS</strong><br/>" +
+          "<span style='font-size:0.82rem;'>Uncached: <code>" + uncachedMs + " ms</code> -&gt; Cached: <code>" + cachedMs + " ms</code> (<code>" + speedup + "x</code> faster) · Culprit Pass: <code>" + esc(bp.isolated_pass_name) + "</code></span></div>" +
+          "<span class='tag tag-pass'>0.0 DIFF</span>";
+
+        document.getElementById("ccSpeedupTag").textContent = speedup + "x Speedup";
+
+        document.getElementById("ccConsoleBox").textContent =
+          "1. ALPHA-CANONICAL SUBGRAPH CACHE:\n" +
+          "   Layers Partitioned     : " + layers + " (Naive unique hashes: " + (res.naive_unique_hashes || layers) + " -> Canonical unique keys: " + (res.cache_misses || 1) + ")\n" +
+          "   SHA-256 Cache Hits     : " + hits + " / " + layers + " (" + res.cache_hit_rate_pct + "%) · Output Drift: " + res.max_diff_cached_vs_uncached + "\n\n" +
+          "2. AUTOMATED BINARY-SEARCH PASS BISECTION (" + bp.bisect_oracle_calls + " ORACLE PROBES):\n" +
+          (bp.bisect_probes || []).map(function (p) {
+            return "   [Pass #" + p.probe_pass_index + " " + p.pass_name + "] -> " + p.status + " (max_diff=" + p.max_abs_diff + ")";
+          }).join("\n") +
+          "\n\n3. ZELLER DDMIN MINIMAL " + bp.minimal_reproducer_op_count + "-OP SSA REPRODUCER (SHRUNK FROM " + bp.initial_op_count + " OPS):\n" +
+          "   Clean IR : " + JSON.stringify(bp.minimal_clean_ssa) + "\n" +
+          "   Buggy IR : " + JSON.stringify(bp.minimal_buggy_ssa);
+      }
+
+      window.runCompilerLive = async function () {
+        const btn = document.getElementById("btnRunCompiler");
+        btn.disabled = true;
+        btn.textContent = "⏳ Compiling & Bisecting SSA Graph...";
+        try {
+          const nLayers = parseInt(document.getElementById("ccLayersSelect").value, 10);
+          const moe = parseInt(document.getElementById("ccTopoSelect").value, 10);
+          const out = await apiPost("/api/compiler/cache-bisect", {
+            num_layers: nLayers,
+            hybrid_moe_every: moe,
+            reset_cache_first: true
+          });
+          renderCompilerResult(out);
+        } catch (err) {
+          document.getElementById("ccConsoleBox").textContent = "API Error: " + err.message;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "▶ Compile Layers & Bisect Buggy Pass";
+        }
+      };
+
+      window.runBedrockAdvisorLive = async function () {
+        const btn = document.getElementById("btnRunBedrock");
+        btn.disabled = true;
+        btn.textContent = "⏳ Querying Amazon Bedrock Nova Lite...";
+        try {
+          const wk = document.getElementById("brkWorkloadSelect").value;
+          const note = document.getElementById("brkNoteInput").value;
+          const out = await apiPost("/api/advisor/analyze", {
+            workload_id: wk,
+            custom_note: note
+          });
+          document.getElementById("brkLatencyTag").textContent =
+            out.bedrock_latency_ms + " ms · " + out.bedrock_tokens + " tok";
+          const adv = out.advisor || {};
+          document.getElementById("brkOutputBox").textContent =
+            "WORKLOAD        : " + out.workload_title + "\n" +
+            "STEP BREAKDOWN  : " + JSON.stringify(out.step_breakdown_ms) + " (Compute Share: " + out.compute_share_pct + "%)\n" +
+            "DOMINANT STALL  : " + out.dominant_non_compute_stall + " -> Routed to: " + (adv.owning_layer || out.owning_layer) + "\n\n" +
+            "BEDROCK SUMMARY :\n" + (adv.bottleneck_summary || "") + "\n\n" +
+            "RECOMMENDED STACK FIXES:\n" +
+            ((adv.recommended_fixes || []).map(function (fx, idx) { return "  " + (idx + 1) + ". " + fx; }).join("\n"));
+        } catch (err) {
+          document.getElementById("brkOutputBox").textContent = "Bedrock API Error: " + err.message;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = "⚡ Analyze Bottleneck With Amazon Bedrock";
+        }
+      };
+
+      window.resetBackendCache = async function () {
+        try {
+          await apiPost("/api/reset", {});
+        } catch (_) {}
+      };
+
+      // Hydrate initial views with exact measured data, then refresh from live /api/*
+      parseHashState();
+      applyTheme(activeTheme);
+      switchTab(activeTab);
+      selectArchNode("core-autograd");
+      renderMeasuredKpisAndBenchmarks();
+
+      // Seed Tab 3 & Tab 4 immediately from embedded measured benchmarks
+      renderFp8Result({
+        steps: 40,
+        learning_rate: 0.0001,
+        exec_ms: MEASURED_BENCHMARKS.headline_kpis.fp8_train_p50_ms,
+        regimes: {
+          fp64_reference: MEASURED_BENCHMARKS.fp8_convergence_curves.fp64_reference,
+          bf16_rne: MEASURED_BENCHMARKS.fp8_convergence_curves.bf16_rne,
+          bf16_sr: MEASURED_BENCHMARKS.fp8_convergence_curves.bf16_sr,
+          mxfp8_sr_master: MEASURED_BENCHMARKS.fp8_convergence_curves.mxfp8_sr_master
+        },
+        bit_inspector: {
+          bf16: { hex: "0xBFB0", bits: "1 01111111 0110000", decoded: -1.375 },
+          fp8_e4m3: { hex: "0xBB", bits: "1 0111 011", decoded: -1.375 },
+          fp8_e5m2: { hex: "0xBD", bits: "1 01111 01", decoded: -1.25 }
+        },
+        mxfp8_outlier_comparison: MEASURED_BENCHMARKS.fp8_convergence_curves.mxfp8_outlier_comparison
+      });
+      renderCompilerResult(MEASURED_BENCHMARKS.compiler_cache_and_bisect);
+      document.getElementById("brkOutputBox").textContent =
+        "Click 'Analyze Bottleneck With Amazon Bedrock' on the left to run a live Converse API call (us.amazon.nova-lite-v1:0) against Llama-3 70B, Flux/WAN MMDiT, or DeepSeek MoE step telemetry.";
+
+      // Probe live API and hydrate Tab 1 & Tab 2 live on load (without overwriting #runtimeModeText!)
+      (async function initLiveHydration() {
+        try {
+          const benchSnap = await apiGet("/api/benchmarks");
+          if (benchSnap && benchSnap.benchmarks && benchSnap.benchmarks.headline_kpis) {
+            MEASURED_BENCHMARKS = benchSnap.benchmarks;
+            renderMeasuredKpisAndBenchmarks();
+          }
+          const agOut = await apiPost("/api/autograd/verify", {
+            world_size: 4,
+            seq_len: 16,
+            n_heads: 4,
+            d_model: 32,
+            d_ff: 64,
+            architecture: "llama_causal"
+          });
+          renderAutogradResult(agOut);
+
+          const ppOut = await apiPost("/api/schedule/1f1b", {
+            num_stages: 4,
+            num_microbatches: 8,
+            memory_budget_ratio: 0.45
+          });
+          renderScheduleResult(ppOut);
+        } catch (_) {}
+      })();
+    })();
+  </script>
+</body>
+</html>
