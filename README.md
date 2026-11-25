@@ -4,7 +4,7 @@
 - **Live `/api/health` Endpoint**: https://d43hwsj7yr4wk.cloudfront.net/api/health
 - **GitHub Repository**: https://github.com/ritwikareddykancharla/neuron-training-parallel
 
-TrainiumPulse is a Python 3.12 engineering workbench for distributed neural network training numerics, pipeline activation memory optimization, and canonical subgraph compiler caching, deployed serverlessly on **Amazon CloudFront + Private S3 (OAC) + AWS Lambda (`python3.12`) + SQLite WAL + Amazon Bedrock (`us.amazon.nova-lite-v1:0`)** at `$0.00` idle cost. All tensor forward/backward passes, `tracemalloc` byte counts, IEEE/OCP bit-level quantizers, and SSA compiler passes execute directly in Python on CPU and AWS Lambda without relying on `trn1`/`trn2`/GPU instances or simulated hardware numbers.
+TrainiumPulse is a serverless engineering workbench for distributed neural network training numerics, pipeline activation memory optimization, and canonical subgraph compiler caching, deployed serverlessly on **Amazon CloudFront + Private S3 (OAC) + AWS Lambda (serverless) + SQLite WAL + Amazon Bedrock (`us.amazon.nova-lite-v1:0`)** at `$0.00` idle cost. All tensor forward/backward passes, `tracemalloc` byte counts, IEEE/OCP bit-level quantizers, and SSA compiler passes execute directly in Python on CPU and AWS Lambda without relying on `trn1`/`trn2`/GPU instances or simulated hardware numbers.
 
 ![TrainiumPulse System Architecture](docs/architecture.svg)
 

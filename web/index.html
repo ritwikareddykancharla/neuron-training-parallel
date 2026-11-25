@@ -906,7 +906,7 @@
       <div class="overview-callout">
         <h3>Overview</h3>
         <p>
-          TrainiumPulse executes real reverse-mode tensor math, memory tracking, IEEE bit-level casting, and SSA graph passes in Python 3.12 on CPU and AWS Lambda without relying on accelerator instances or simulated numbers. Across <code>12 / 12</code> multi-rank runs, sharded <code>TP=4 + Ulysses + ZeRO-1</code> training matches single-rank FP64 parameter gradients within <code>2.08e-17</code> while cutting Rank-0 AdamW state memory by <code>73.98%</code>. Combining a <code>1F1B</code> pipeline schedule with exact <code>0/1</code> knapsack selective activation checkpointing cuts live activation stash memory by <code>84.38%</code> vs. uncheckpointed <code>GPipe</code> with <code>0.0</code> gradient drift, unbiased stochastic rounding lifts 40-step <code>lr=1e-4</code> loss reduction from <code>0.0%</code> (swamped round-to-nearest) to <code>96.1%</code>, and alpha-canonical <code>SHA-256</code> subgraph caching hits <code>23 / 24</code> repeated transformer layers (<code>95.8%</code>, <code>19.77x</code> speedup).
+          TrainiumPulse executes real reverse-mode tensor math, memory tracking, IEEE bit-level casting, and SSA graph passes directly on AWS Lambda without relying on accelerator instances or simulated numbers. Across <code>12 / 12</code> multi-rank runs, sharded <code>TP=4 + Ulysses + ZeRO-1</code> training matches single-rank FP64 parameter gradients within <code>2.08e-17</code> while cutting Rank-0 AdamW state memory by <code>73.98%</code>. Combining a <code>1F1B</code> pipeline schedule with exact <code>0/1</code> knapsack selective activation checkpointing cuts live activation stash memory by <code>84.38%</code> vs. uncheckpointed <code>GPipe</code> with <code>0.0</code> gradient drift, unbiased stochastic rounding lifts 40-step <code>lr=1e-4</code> loss reduction from <code>0.0%</code> (swamped round-to-nearest) to <code>96.1%</code>, and alpha-canonical <code>SHA-256</code> subgraph caching hits <code>23 / 24</code> repeated transformer layers (<code>95.8%</code>, <code>19.77x</code> speedup).
         </p>
       </div>
 
@@ -971,7 +971,7 @@
           <span class="section-kicker">02 · Architecture</span>
           <h2 class="section-title">Architecture</h2>
           <p class="section-desc">
-            Static UI assets are served by Amazon CloudFront from a private S3 bucket via OAC, and <code>/api/*</code> routes execute Python 3.12 tensor, memory, quantization, and compiler engines on AWS Lambda alongside Amazon Bedrock. Click any component to inspect its module and measured metrics.
+            Static UI assets are served by Amazon CloudFront from a private S3 bucket via OAC, and <code>/api/*</code> routes execute tensor, memory, quantization, and compiler engines on AWS Lambda alongside Amazon Bedrock. Click any component to inspect its module and measured metrics.
           </p>
         </div>
       </div>
@@ -1002,7 +1002,7 @@
 
           <!-- PLANE 1: EDGE & SERVERLESS API -->
           <rect x="22" y="18" width="1176" height="146" fill="#FAFAFA" stroke="#71717A" stroke-width="1.6" stroke-dasharray="8 6" />
-          <text x="36" y="42" class="svg-title" font-size="21" font-weight="700" fill="#B45309">① Browser Workbench &amp; Serverless Edge (CloudFront + Private S3 OAC + Python 3.12 Lambda)</text>
+          <text x="36" y="42" class="svg-title" font-size="21" font-weight="700" fill="#B45309">① Browser Workbench &amp; Serverless Edge (CloudFront + Private S3 OAC + AWS Lambda)</text>
 
           <g class="arch-node selected" data-arch-node="edge-browser" tabindex="0">
             <rect class="arch-stroke-main" x="40" y="56" width="205" height="86" fill="#FEF3C7" stroke="#18181B" stroke-width="2.1" />
@@ -1032,7 +1032,7 @@
 
           <g class="arch-node" data-arch-node="edge-lambda" tabindex="0">
             <rect class="arch-stroke-main" x="630" y="100" width="275" height="54" fill="#FFEDD5" stroke="#18181B" stroke-width="2" />
-            <text x="767" y="123" text-anchor="middle" class="svg-title" font-size="19" font-weight="700" fill="#18181B">AWS Lambda (Python 3.12)</text>
+            <text x="767" y="123" text-anchor="middle" class="svg-title" font-size="19" font-weight="700" fill="#18181B">AWS Lambda</text>
             <text x="767" y="142" text-anchor="middle" class="svg-mono" font-size="9.2" fill="#9A3412">trainium_pulse/server.py · 512 MB</text>
           </g>
 
@@ -1134,7 +1134,7 @@
           <span class="section-kicker">03 · Implementation</span>
           <h2 class="section-title">Implementation</h2>
           <p class="section-desc">
-            Five Python 3.12 modules execute real multi-rank backward passes, dynamic-programming checkpointing, IEEE/OCP floating-point quantization, canonical SSA compilation, and AWS Lambda HTTP routing.
+            Five backend modules execute real multi-rank backward passes, dynamic-programming checkpointing, IEEE/OCP floating-point quantization, canonical SSA compilation, and AWS Lambda HTTP routing.
           </p>
         </div>
         <span class="tag tag-pass">12 / 12 Unit Tests Passing</span>
@@ -1668,7 +1668,7 @@
 
       <footer class="footer">
         <div>
-          <strong>TrainiumPulse</strong> · Distributed Training Parallelism, Reduced-Precision Numerics &amp; Subgraph Compiler Cache · Python 3.12 + AWS Lambda + CloudFront OAC + Amazon Bedrock
+          <strong>TrainiumPulse</strong> · Distributed Training Parallelism, Reduced-Precision Numerics &amp; Subgraph Compiler Cache · AWS Lambda + CloudFront OAC + Amazon Bedrock
         </div>
         <div class="mono" style="font-size:0.72rem;">
           Zero idle servers · 100% real executed tensor, tracemalloc &amp; SSA IR metrics
@@ -1820,7 +1820,7 @@
           title: "Amazon CloudFront CDN & Origin Router",
           module: "infra/deploy_cloudfront.sh",
           metric: "HTTP/2 + HTTP/3 · TLS 1.2+",
-          summary: "Serves static UI files from a private S3 origin via Origin Access Control (OAC) and forwards uncached POST/GET /api/* requests directly to the Python 3.12 AWS Lambda Function URL."
+          summary: "Serves static UI files from a private S3 origin via Origin Access Control (OAC) and forwards uncached POST/GET /api/* requests directly to the AWS Lambda Function URL."
         },
         "edge-s3": {
           plane: "Plane 1 · Serverless Delivery Edge",
@@ -1831,7 +1831,7 @@
         },
         "edge-lambda": {
           plane: "Plane 1 · Serverless Delivery Edge",
-          title: "AWS Lambda API Origin (Python 3.12)",
+          title: "AWS Lambda API Origin",
           module: "trainium_pulse/server.py (lambda_handler)",
           metric: "512 MB · 30s Timeout",
           summary: "Executes real tensor forward/backward passes, tracemalloc activation profiling, IEEE/OCP bit quantization, and SSA compiler passes on demand at $0.00 idle cost."
